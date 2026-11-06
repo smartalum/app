@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Smart Alum Core - موبايل</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a8a">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Tahoma, Arial, sans-serif; direction: rtl; margin: 0; background: #f3f4f6; color: #111827; padding-bottom: 30px; }
+  header { background: #1e3a8a; color: #fff; padding: 14px 16px; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { font-size: 17px; margin: 0; }
+  #statusDot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-left: 6px; background: #9ca3af; }
+  #statusDot.on { background: #4ade80; }
+  #statusDot.off { background: #f87171; }
+  .wrap { padding: 14px; max-width: 480px; margin: 0 auto; }
+  .card { background: #fff; border-radius: 10px; padding: 14px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .card h2 { font-size: 15px; margin: 0 0 10px; color: #1e3a8a; }
+  label { display: block; font-size: 13px; color: #4b5563; margin: 8px 0 4px; }
+  select, input, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 15px; font-family: inherit; direction: rtl; }
+  textarea { resize: vertical; min-height: 50px; }
+  .row2 { display: flex; gap: 8px; }
+  .row2 > div { flex: 1; }
+  button { border: none; border-radius: 8px; font-size: 15px; font-weight: bold; padding: 12px; cursor: pointer; width: 100%; margin-top: 10px; }
+  .btn-main { background: #2563eb; color: #fff; }
+  .btn-green { background: #16a34a; color: #fff; }
+  .btn-gray { background: #6b7280; color: #fff; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-sm { width: auto; padding: 6px 12px; font-size: 12px; margin: 0; }
+  .muted { color: #6b7280; font-size: 12px; }
+  .link-btn { background: none; color: #2563eb; text-decoration: underline; font-weight: normal; font-size: 13px; width: auto; padding: 4px; margin: 6px auto 0; display: block; }
+  .result-line { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; border-bottom: 1px dashed #e5e7eb; }
+  .result-line b { color: #111827; }
+  .total-box { background: #eef2ff; border-radius: 8px; padding: 10px; margin-top: 8px; text-align: center; font-size: 19px; font-weight: bold; color: #1e3a8a; }
+  .pending-item { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+  .pending-item .top { display: flex; justify-content: space-between; align-items: center; }
+  .pending-item .name { font-weight: bold; }
+  .pending-item .price { color: #16a34a; font-weight: bold; }
+  .tag { display: inline-block; background: #fef3c7; color: #92400e; font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-top: 4px; }
+  .err { background: #fee2e2; color: #991b1b; padding: 10px; border-radius: 8px; font-size: 13px; margin-top: 8px; }
+  .ok { background: #dcfce7; color: #166534; padding: 10px; border-radius: 8px; font-size: 13px; margin-top: 8px; }
+  .connected-box { background: #dcfce7; border-radius: 8px; padding: 12px; text-align: center; margin-bottom: 10px; }
+  .connected-box b { color: #166534; }
+  #connectScreen { display: none; }
+  #mainScreen { display: none; }
+  #manualFields { display: none; }
+  .gear { cursor: pointer; font-size: 18px; background: none; width: auto; padding: 4px 8px; }
+  .hidden { display: none !important; }
+  .tabbar { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tabbtn { flex: 1; margin: 0; background: #e5e7eb; color: #374151; position: relative; }
+  .tabbtn.active { background: #1e3a8a; color: #fff; }
+  .badge { position: absolute; top: -6px; left: -6px; background: #dc2626; color: #fff; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; display: flex; align-items: center; justify-content: center; }
+  .job-item { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+  .job-item .top { display: flex; justify-content: space-between; align-items: center; }
+  .job-item .name { font-weight: bold; }
+  .status-pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; background: #e5e7eb; color: #374151; }
+  .status-عرض { background: #fef3c7; color: #92400e; }
+  .status-تحت-التنفيذ { background: #dbeafe; color: #1e40af; }
+  .status-تم-التسليم { background: #dcfce7; color: #166534; }
+  .status-ملغي { background: #fee2e2; color: #991b1b; }
+  .act-item { padding: 8px 0; border-bottom: 1px dashed #e5e7eb; font-size: 13px; }
+  .act-item .act-action { font-weight: bold; color: #1e3a8a; }
+  .act-item .act-time { color: #9ca3af; font-size: 11px; }
+  #qrModal { display: none; position: fixed; inset: 0; background: #000; z-index: 50; }
+  #qrModal video { width: 100%; height: 100%; object-fit: cover; }
+  #qrModal .qr-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; }
+  #qrModal .qr-frame { align-self: center; margin-top: 25vh; width: 220px; height: 220px; border: 3px solid #fff; border-radius: 16px; box-shadow: 0 0 0 2000px rgba(0,0,0,.45); }
+  #qrModal .qr-msg { color: #fff; text-align: center; font-size: 14px; }
+  #qrCloseBtn { width: auto; align-self: center; background: #dc2626; color: #fff; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛠️ ورشتي - مقايسة سريعة</h1>
+  <div>
+    <span id="statusDot"></span>
+    <button class="gear" id="gearBtn" title="إعدادات">⚙️</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- شاشة الربط الأولى: مسح QR أو إدخال يدوي -->
+  <div id="connectScreen" class="card">
+    <h2>اربط التطبيق بورشتك</h2>
+    <div id="connectedBox" class="connected-box hidden">
+      <div>متصل بورشة: <b id="connectedName">-</b> ✅</div>
+    </div>
+    <p class="muted">افتح البرنامج على الكمبيوتر → تبويب "إعدادات الورشة" → بوكس "مزامنة الموبايل عبر Google Sheet"، ودوس "اعرض QR للعميل" وامسحه بالكاميرا.</p>
+    <button class="btn-main" id="scanQrBtn">📷 مسح كود QR</button>
+    <div id="connectMsg"></div>
+    <button class="link-btn" id="toggleManualBtn">مش عندي QR / أدخل الرابط يدوي</button>
+    <div id="manualFields">
+      <label>رابط الشيت</label>
+      <input id="sheetUrlInput" type="text" placeholder="https://script.google.com/.../exec" autocomplete="off" autocapitalize="off">
+      <label>التوكن</label>
+      <input id="sheetTokenInput" type="text" placeholder="التوكن" autocomplete="off" autocapitalize="off">
+      <button class="btn-main" id="saveManualBtn">حفظ والمزامنة</button>
+    </div>
+    <button class="btn-red hidden" id="disconnectBtn">قطع الاتصال / تغيير الورشة</button>
+  </div>
+
+  <!-- الشاشة الرئيسية -->
+  <div id="mainScreen">
+
+    <div class="card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="muted" id="syncInfo">لسه ماتزامنش</span>
+        <button class="btn-sm btn-gray" id="syncBtn">🔄 مزامنة</button>
+      </div>
+    </div>
+
+    <div class="tabbar">
+      <button class="tabbtn active" id="tabQuoteBtn">📊 مقايسة</button>
+      <button class="tabbtn" id="tabTrackBtn">📋 متابعة<span class="badge hidden" id="trackBadge">0</span></button>
+    </div>
+
+    <div id="quoteScreen">
+
+    <div class="card">
+      <h2>بيانات الشغلانة</h2>
+      <label>القطاع</label>
+      <select id="secSelect"></select>
+
+      <div class="row2">
+        <div>
+          <label>العرض (سم)</label>
+          <input id="wInput" type="number" inputmode="decimal" placeholder="مثلاً 120">
+        </div>
+        <div>
+          <label>الارتفاع (سم)</label>
+          <input id="hInput" type="number" inputmode="decimal" placeholder="مثلاً 150">
+        </div>
+      </div>
+
+      <label>العدد</label>
+      <input id="qtyInput" type="number" inputmode="numeric" value="1" min="1">
+
+      <label>نوع الزجاج</label>
+      <select id="glassSelect"></select>
+
+      <label>اسم العميل (اختياري)</label>
+      <input id="custName" type="text">
+
+      <label>تليفون العميل (لازم تكتبه قبل الحفظ)</label>
+      <input id="custPhone" type="tel" inputmode="tel">
+
+      <label>ملاحظات (اختياري)</label>
+      <textarea id="notesInput"></textarea>
+
+      <button class="btn-main" id="calcBtn">📊 احسب تقدير</button>
+    </div>
+
+    <div class="card hidden" id="resultCard">
+      <h2>التقدير</h2>
+      <div id="resultBody"></div>
+      <div class="total-box" id="resultTotal"></div>
+      <p class="muted">⚠️ تقدير تقريبي بأسعار آخر مزامنة، مش سعر نهائي. السعر الرسمي من البرنامج على الكمبيوتر.</p>
+      <button class="btn-green" id="saveQueueBtn">💾 حفظ في قائمة الانتظار</button>
+    </div>
+
+    <div class="card">
+      <h2>قائمة الانتظار (لسه محتاجة مزامنة) <span id="queueCount" class="muted"></span></h2>
+      <div id="queueList"></div>
+      <p class="muted" id="queueEmpty">مفيش حاجة محفوظة لسه.</p>
+    </div>
+
+    </div>
+
+    <div id="trackScreen" class="hidden">
+
+      <div class="card hidden" id="pendingReviewCard">
+        <h2>⏳ عروض محتاجة مراجعتك</h2>
+        <p class="muted" id="pendingReviewText"></p>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h2 style="margin:0;">آخر الشغلانات</h2>
+          <button class="btn-sm btn-gray" id="refreshTrackBtn">🔄 تحديث</button>
+        </div>
+        <div id="jobsList" style="margin-top:10px;"></div>
+        <p class="muted" id="jobsEmpty">مفيش شغلانات لسه.</p>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+          <h2 style="margin:0;">سجل الأنشطة</h2>
+          <div style="display:flex; gap:6px;">
+            <select id="actTypeSelect" style="width:auto; padding:6px;">
+              <option value="all">كل الأنواع</option>
+              <option value="login">دخول البرنامج</option>
+              <option value="stock">مخزن</option>
+              <option value="work">عرض/شغل وبيع</option>
+            </select>
+            <select id="actRangeSelect" style="width:auto; padding:6px;">
+              <option value="today">النهارده</option>
+              <option value="yesterday">يوم سابق</option>
+              <option value="3days">آخر 3 أيام</option>
+              <option value="week">آخر أسبوع</option>
+              <option value="all">كل الفترة</option>
+            </select>
+          </div>
+        </div>
+        <div id="activityList" style="margin-top:10px;"></div>
+        <p class="muted" id="activityEmpty">مفيش أنشطة لسه.</p>
+      </div>
+
+      <p class="muted" id="trackOffline"></p>
+
+    </div>
+
+  </div>
+
+</div>
+
+<!-- مودال مسح الـ QR -->
+<div id="qrModal">
+  <video id="qrVideo" playsinline autoplay muted></video>
+  <div class="qr-overlay">
+    <div class="qr-msg">وجّه الكاميرا على كود QR اللي ظاهر في البرنامج</div>
+    <div class="qr-frame"></div>
+    <button id="qrCloseBtn">إلغاء</button>
+  </div>
+</div>
+<canvas id="qrCanvas" class="hidden"></canvas>
+
+<script src="jsqr.min.js"></script>
+<script>
+// ---------------------------------------------------------------
+// تخزين محلي: رابط وتوكن الشيت (بديل الاتصال بالكمبيوتر تمامًا)، آخر بيانات مزامنة، وقائمة الانتظار
+// ---------------------------------------------------------------
+const LS_SNAPSHOT = "sac_snapshot", LS_QUEUE = "sac_queue";
+const LS_SHEET_URL = "sac_sheet_url", LS_SHEET_TOKEN = "sac_sheet_token", LS_WORKSHOP_NAME = "sac_workshop_name";
+
+function getSnapshot() { try { return JSON.parse(localStorage.getItem(LS_SNAPSHOT) || "null"); } catch (e) { return null; } }
+function getSheetUrl() { return localStorage.getItem(LS_SHEET_URL) || ""; }
+function getSheetToken() { return localStorage.getItem(LS_SHEET_TOKEN) || ""; }
+function getQueue() { try { return JSON.parse(localStorage.getItem(LS_QUEUE) || "[]"); } catch (e) { return []; } }
+function setQueue(q) { try { localStorage.setItem(LS_QUEUE, JSON.stringify(q)); } catch (e) {} }
+
+// بنكلم الشيت على طول دايمًا - مفيش كمبيوتر/شبكة محلية في الموضوع خالص.
+// بنبعت POST بـ text/plain مش application/json عشان نتجنب مشكلة CORS preflight مع جوجل سكريبت.
+async function sheetDirectRequest(action, method, payload) {
+  const url = getSheetUrl(), tok = getSheetToken();
+  if (!url) return {ok: false, error: "مفيش رابط شيت متسجل لسه"};
+  try {
+    let res;
+    if (method === "GET") {
+      const qs = new URLSearchParams(Object.assign({action, token: tok}, payload || {}));
+      res = await fetch(url + "?" + qs.toString(), {method: "GET"});
+    } else {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {"Content-Type": "text/plain;charset=utf-8"},
+        body: JSON.stringify(Object.assign({action, token: tok}, payload || {}))
+      });
+    }
+    return await res.json();
+  } catch (e) {
+    return {ok: false, error: e.message};
+  }
+}
+
+// ---------------------------------------------------------------
+// نفس منطق حساب المقايسة اللي في البرنامج (workshop.py: compute_estimate_core)
+// منقول لجافاسكريبت عشان يشتغل جوه المتصفح من غير اتصال بالكمبيوتر خالص
+// ---------------------------------------------------------------
+function toF(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+
+function safeEval(expr, vars) {
+  expr = (expr === undefined || expr === null) ? "" : String(expr).trim();
+  if (!expr) return null;
+  if (!/^[\d\s+\-*/().,A-Za-z_]+$/.test(expr)) throw new Error("فيه معادلة في بيانات القطاع فيها رموز غير مسموحة: " + expr);
+  const funcs = {
+    ceil: Math.ceil, floor: Math.floor,
+    round: (x, n) => { if (n === undefined) return Math.round(x); const f = Math.pow(10, n); return Math.round(x * f) / f; },
+    max: Math.max, min: Math.min
+  };
+  const names = Object.keys(vars), values = names.map(k => vars[k]);
+  const fnNames = Object.keys(funcs), fnVals = Object.values(funcs);
+  try {
+    const f = new Function(...names, ...fnNames, '"use strict"; return (' + expr + ');');
+    return f(...values, ...fnVals);
+  } catch (e) {
+    throw new Error("خطأ في معادلة القطاع: " + expr);
+  }
+}
+
+function getFrameDims(sec, W, H) {
+  return [safeEval(sec.fw_formula || "W", {W, H}), safeEval(sec.fh_formula || "H", {W, H})];
+}
+function getDividerDims(sec, W, H, FW, FH) {
+  return [safeEval(sec.dw_formula || "FW", {W, H, FW, FH}), safeEval(sec.dh_formula || "FH", {W, H, FW, FH})];
+}
+function getDims(sec, W, H) {
+  const [FW, FH] = getFrameDims(sec, W, H);
+  const [DW, DH] = getDividerDims(sec, W, H, FW, FH);
+  const SW = safeEval(sec.w_formula || "W", {W, H, FW, FH, DW, DH});
+  const SH = safeEval(sec.h_formula || "H", {W, H, FW, FH, DW, DH});
+  return {SW, SH, FW, FH, DW, DH};
+}
+function getGlassDims(sec, W, H, SW, SH, FW, FH, DW, DH) {
+  return [safeEval(sec.gw_formula || "SW", {W, H, SW, SH, FW, FH, DW, DH}), safeEval(sec.gh_formula || "SH", {W, H, SW, SH, FW, FH, DW, DH})];
+}
+function getKnifeLen(sec, W, H, SW, SH, FW, FH, DW, DH) {
+  return safeEval(sec.knife_formula || "SH", {W, H, SW, SH, FW, FH, DW, DH});
+}
+function getSashCount(sec) {
+  const n = parseInt(sec.sash_count);
+  if (!isNaN(n) && n >= 1) return n;
+  return (sec.w_formula || "").includes("/") ? 2 : 1;
+}
+function getFrameCount(sec) {
+  const n = parseInt(sec.frame_count);
+  return (!isNaN(n) && n >= 1) ? n : 1;
+}
+function getBarWeights(sec) {
+  const oldFrame = toF(sec.frame_kg_m), oldSash = toF(sec.sash_kg_m);
+  return [toF(sec.frame_w_kg_m) || oldFrame, toF(sec.frame_h_kg_m) || oldFrame, toF(sec.sash_w_kg_m) || oldSash, toF(sec.sash_h_kg_m) || oldSash];
+}
+function getDividers(sec) {
+  const cnt = k => { const n = parseInt(sec[k]); return (!isNaN(n) && n >= 0) ? n : 0; };
+  return [cnt("div_w_count"), toF(sec.div_w_kg_m), cnt("div_h_count"), toF(sec.div_h_kg_m)];
+}
+function getKnife(sec) {
+  let n = parseInt(sec.knife_count); n = (!isNaN(n) && n >= 0) ? n : 0;
+  return [n, toF(sec.knife_kg_m)];
+}
+function getPricing(sec) {
+  const mode = sec.pricing_mode === "meter" ? "meter" : "weight";
+  return {mode, frame_price_m: toF(sec.frame_price_m), sash_price_m: toF(sec.sash_price_m), div_price_m: toF(sec.div_price_m), knife_price_m: toF(sec.knife_price_m)};
+}
+
+function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts) {
+  const {SW, SH, FW, FH, DW, DH} = getDims(sec, W, H);
+  const meshWf = sec.mesh_w_formula, meshHf = sec.mesh_h_formula;
+  const hasMesh = !!(meshWf && meshWf.trim()) && !!(meshHf && meshHf.trim());
+  let meshW = null, meshH = null;
+  if (hasMesh) {
+    meshW = safeEval(meshWf, {W, H, SW, SH, FW, FH, DW, DH});
+    meshH = safeEval(meshHf, {W, H, SW, SH, FW, FH, DW, DH});
+  }
+  const [GW, GH] = getGlassDims(sec, W, H, SW, SH, FW, FH, DW, DH);
+  const numPanes = getSashCount(sec);
+  const glassArea = (GW / 100) * (GH / 100) * numPanes;
+  const frameCount = getFrameCount(sec);
+  const [fwRate, fhRate, swRate, shRate] = getBarWeights(sec);
+  const fwM = 2 * frameCount * FW / 100, fhM = 2 * frameCount * FH / 100;
+  const swM = 2 * numPanes * SW / 100, shM = 2 * numPanes * SH / 100;
+  const fwKg = fwM * fwRate, fhKg = fhM * fhRate, swKg = swM * swRate, shKg = shM * shRate;
+  const frameKg = fwKg + fhKg, sashKg = swKg + shKg;
+  const [dwN, dwRate, dhN, dhRate] = getDividers(sec);
+  const dwM = dwN * DW / 100, dhM = dhN * DH / 100;
+  const dwKg = dwM * dwRate, dhKg = dhM * dhRate, divKg = dwKg + dhKg;
+  const [knN, knRate] = getKnife(sec);
+  const KL = getKnifeLen(sec, W, H, SW, SH, FW, FH, DW, DH);
+  const knM = knN * KL / 100, knKg = knM * knRate;
+  const exactWeight = Math.min(fwRate, fhRate, swRate, shRate) > 0 && (dwN === 0 || dwRate > 0) && (dhN === 0 || dhRate > 0) && (knN === 0 || knRate > 0);
+  const pricing = getPricing(sec);
+  let totalKg;
+  if (exactWeight) {
+    totalKg = frameKg + sashKg + divKg + knKg;
+  } else if (pricing.mode === "meter") {
+    totalKg = 0;
+  } else {
+    const area = (W / 100) * (H / 100);
+    totalKg = area * toF(sec.weight_factor);
+    if (totalKg <= 0) throw new Error("القطاع ده مفيهوش أوزان متر مسجلة في آخر مزامنة، مش هينفع يتحسب أوفلاين. زامن البيانات تاني وانت متصل.");
+  }
+  const frM = fwM + fhM, saM = swM + shM, dvM = dwM + dhM;
+  let aluCost;
+  if (pricing.mode === "meter") {
+    aluCost = frM * pricing.frame_price_m + saM * pricing.sash_price_m + dvM * pricing.div_price_m + knM * pricing.knife_price_m;
+  } else {
+    aluCost = totalKg * priceKg;
+  }
+  const wastePct = Math.max(toF(sec.waste_pct), 0);
+  const aluBase = aluCost;
+  const wasteAmt = aluBase * wastePct / 100;
+  aluCost = aluBase + wasteAmt;
+
+  const ctx = {W, H, SW, SH, FW, FH, DW, DH, GW, GH, GA: glassArea, NS: numPanes, KL, KN: knN};
+  let totalAcc = 0;
+  const accRows = [];
+  for (const item of (sec.accessories || [])) {
+    const qty = toF(safeEval(item.qty_formula || "1", ctx));
+    const price = toF(item.price);
+    const total = qty * price;
+    totalAcc += total;
+    accRows.push({name: item.name, qty, price, total});
+  }
+  const glassWastePct = Math.max(toF(sec.glass_waste_pct), 0);
+  const po = opts || {};
+  const gv = Math.max(toF(po.glass_value), 0);
+  let gw2 = GW, gh2 = GH;
+  if (po.glass_mode === "round" && gv > 0) {
+    gw2 = Math.ceil(Math.round(GW / gv * 1e6) / 1e6) * gv;
+    gh2 = Math.ceil(Math.round(GH / gv * 1e6) / 1e6) * gv;
+  }
+  let paneArea = (gw2 / 100) * (gh2 / 100);
+  if (po.glass_mode === "minarea" && gv > 0) paneArea = Math.max(paneArea, gv);
+  const glassBilledArea = paneArea * numPanes;
+  const glassBaseCost = glassBilledArea * glassPrice;
+  const glassWasteAmt = glassBaseCost * glassWastePct / 100;
+  const glassCost = glassBaseCost + glassWasteAmt;
+  const totalCost = aluCost + glassCost + totalAcc;
+  const winArea = (W / 100) * (H / 100);
+  const laborQty = sec.labor_mode === "length" ? (frM + saM + dvM + knM) : winArea;
+  const laborCost = po.labor_on === "1" ? laborQty * Math.max(toF(sec.labor_rate), 0) : 0;
+  const overheadCost = po.overhead_on === "1" ? winArea * Math.max(toF(po.overhead_per_m2), 0) : 0;
+  const sellingPrice = po.profit_mode === "mat"
+    ? totalCost * (1 + profitPct / 100) + laborCost + overheadCost
+    : (totalCost + laborCost + overheadCost) * (1 + profitPct / 100);
+  return {SW, SH, FW, FH, DW, DH, GW, GH, hasMesh, meshW, meshH, numPanes, frameCount, totalKg,
+          aluCost, aluBase, wastePct, wasteAmt, glassArea, glassBaseCost, glassWastePct, glassWasteAmt, glassCost, accRows, totalAcc,
+          totalCost, sellingPrice, pricingMode: pricing.mode, dwN, dhN, knN, KL};
+}
+
+// ---------------------------------------------------------------
+// واجهة الربط الأولى: QR / رابط مباشر / إدخال يدوي
+// ---------------------------------------------------------------
+const connectScreen = document.getElementById("connectScreen");
+const mainScreen = document.getElementById("mainScreen");
+const statusDot = document.getElementById("statusDot");
+const secSelect = document.getElementById("secSelect");
+const glassSelect = document.getElementById("glassSelect");
+const syncInfo = document.getElementById("syncInfo");
+
+function fmt(n) {
+  if (n === null || n === undefined || isNaN(n)) return "-";
+  return (Math.round(n * 100) / 100).toLocaleString("ar-EG");
+}
+
+function isConnected() { return !!getSheetUrl(); }
+
+function showScreen() {
+  connectScreen.style.display = isConnected() ? "none" : "block";
+  mainScreen.style.display = isConnected() ? "block" : "none";
+}
+
+function saveConnection(url, token, workshopName) {
+  localStorage.setItem(LS_SHEET_URL, url);
+  localStorage.setItem(LS_SHEET_TOKEN, token);
+  if (workshopName) localStorage.setItem(LS_WORKSHOP_NAME, workshopName);
+}
+
+function clearConnection() {
+  localStorage.removeItem(LS_SHEET_URL);
+  localStorage.removeItem(LS_SHEET_TOKEN);
+  localStorage.removeItem(LS_WORKSHOP_NAME);
+  localStorage.removeItem(LS_SNAPSHOT);
+}
+
+async function finishConnect(url, token, msgBox) {
+  saveConnection(url, token);
+  if (msgBox) msgBox.innerHTML = '<div class="ok">بيتزامن...</div>';
+  const resp = await sheetDirectRequest("status", "GET");
+  const name = (resp && resp.ok) ? (resp.workshop || "") : "";
+  if (name) saveConnection(url, token, name);
+  const ok = await doSync();
+  if (ok || name) {
+    if (msgBox) msgBox.innerHTML = '';
+    setTimeout(() => { showScreen(); loadOverview(); }, 300);
+  } else if (msgBox) {
+    msgBox.innerHTML = '<div class="err">اتحفظ، بس مش قادر يوصل الشيت دلوقتي. هيحاول تاني أول ما يبقى فيه نت.</div>';
+    setTimeout(showScreen, 800);
+  }
+}
+
+// لو جه رابط فيه ?u=..&t=.. (من مسح QR بكاميرا الموبايل العادية مثلاً) بنحفظهم أوتوماتيك
+// وبنمسح الرابط من شريط العنوان عشان التوكن مايفضلش ظاهر لحد.
+(function checkDeepLink() {
+  const params = new URLSearchParams(location.search);
+  const u = params.get("u"), t = params.get("t");
+  if (u && t) {
+    finishConnect(decodeURIComponent(u), decodeURIComponent(t));
+    history.replaceState(null, "", location.pathname);
+  }
+})();
+
+document.getElementById("toggleManualBtn").addEventListener("click", () => {
+  const box = document.getElementById("manualFields");
+  box.style.display = box.style.display === "block" ? "none" : "block";
+});
+
+document.getElementById("saveManualBtn").addEventListener("click", async () => {
+  const url = document.getElementById("sheetUrlInput").value.trim();
+  const token = document.getElementById("sheetTokenInput").value.trim();
+  const msgBox = document.getElementById("connectMsg");
+  if (!url || !token) { msgBox.innerHTML = '<div class="err">اكتب الرابط والتوكن الاتنين</div>'; return; }
+  await finishConnect(url, token, msgBox);
+});
+
+document.getElementById("disconnectBtn").addEventListener("click", () => {
+  if (!confirm("متأكد عايز تقطع الاتصال بالورشة دي؟")) return;
+  clearConnection();
+  showScreen();
+});
+
+document.getElementById("gearBtn").addEventListener("click", () => {
+  connectScreen.style.display = "block";
+  mainScreen.style.display = "none";
+  document.getElementById("disconnectBtn").classList.toggle("hidden", !isConnected());
+  document.getElementById("connectedBox").classList.toggle("hidden", !isConnected());
+  document.getElementById("connectedName").textContent = localStorage.getItem(LS_WORKSHOP_NAME) || "-";
+});
+
+// ---------------------------------------------------------------
+// مسح QR بالكاميرا (jsQR)
+// ---------------------------------------------------------------
+const qrModal = document.getElementById("qrModal");
+const qrVideo = document.getElementById("qrVideo");
+const qrCanvas = document.getElementById("qrCanvas");
+let qrStream = null, qrRaf = null;
+
+function stopQrScan() {
+  if (qrRaf) cancelAnimationFrame(qrRaf);
+  qrRaf = null;
+  if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+  qrModal.style.display = "none";
+}
+
+function parseQrPayload(text) {
+  text = (text || "").trim();
+  try {
+    if (text.startsWith("http")) {
+      const u = new URL(text);
+      const url = u.searchParams.get("u"), token = u.searchParams.get("t");
+      if (url && token) return {url: decodeURIComponent(url), token: decodeURIComponent(token)};
+      return null;
+    }
+    const obj = JSON.parse(text);
+    if (obj && obj.url && obj.token) return {url: obj.url, token: obj.token};
+  } catch (e) { /* مش شكل متوقع */ }
+  return null;
+}
+
+function qrTick() {
+  if (!qrStream) return;
+  if (qrVideo.readyState === qrVideo.HAVE_ENOUGH_DATA) {
+    qrCanvas.width = qrVideo.videoWidth;
+    qrCanvas.height = qrVideo.videoHeight;
+    const ctx = qrCanvas.getContext("2d");
+    ctx.drawImage(qrVideo, 0, 0, qrCanvas.width, qrCanvas.height);
+    const imgData = ctx.getImageData(0, 0, qrCanvas.width, qrCanvas.height);
+    const code = jsQR(imgData.data, imgData.width, imgData.height);
+    if (code && code.data) {
+      const parsed = parseQrPayload(code.data);
+      stopQrScan();
+      if (parsed) {
+        finishConnect(parsed.url, parsed.token, document.getElementById("connectMsg"));
+      } else {
+        document.getElementById("connectMsg").innerHTML = '<div class="err">الكود ده مش كود ربط صحيح. جرّب تاني.</div>';
+      }
+      return;
+    }
+  }
+  qrRaf = requestAnimationFrame(qrTick);
+}
+
+document.getElementById("scanQrBtn").addEventListener("click", async () => {
+  try {
+    qrStream = await navigator.mediaDevices.getUserMedia({video: {facingMode: "environment"}});
+    qrVideo.srcObject = qrStream;
+    qrModal.style.display = "block";
+    qrRaf = requestAnimationFrame(qrTick);
+  } catch (e) {
+    document.getElementById("connectMsg").innerHTML = '<div class="err">مش قادر يفتح الكاميرا (' + e.message + '). استخدم الإدخال اليدوي.</div>';
+    document.getElementById("manualFields").style.display = "block";
+  }
+});
+document.getElementById("qrCloseBtn").addEventListener("click", stopQrScan);
+
+// ---------------------------------------------------------------
+// المزامنة مع الشيت: الأسعار والقطاعات + قائمة الانتظار
+// ---------------------------------------------------------------
+function fillDropdowns() {
+  const snap = getSnapshot();
+  secSelect.innerHTML = "";
+  glassSelect.innerHTML = "";
+  if (!snap) return;
+  Object.keys(snap.sections || {}).forEach(name => {
+    const o = document.createElement("option");
+    o.value = name; o.textContent = name;
+    secSelect.appendChild(o);
+  });
+  (snap.glass_types || []).forEach(g => {
+    const o = document.createElement("option");
+    o.value = g.name; o.textContent = g.name + " (" + g.price + " ج/م²)";
+    if (g.name === snap.glass_default) o.selected = true;
+    glassSelect.appendChild(o);
+  });
+  syncInfo.textContent = "آخر مزامنة: " + (snap.time || "-") + " (" + (snap.workshop_name || "") + ")";
+}
+
+async function doSync(showMsg) {
+  if (!isConnected()) return false;
+  const resp = await sheetDirectRequest("snapshot", "GET");
+  if (resp && resp.ok && resp.data) {
+    localStorage.setItem(LS_SNAPSHOT, JSON.stringify(resp.data));
+    if (resp.data.workshop_name) localStorage.setItem(LS_WORKSHOP_NAME, resp.data.workshop_name);
+    statusDot.className = "on";
+    fillDropdowns();
+    if (showMsg) showMsg("ok", "تمت المزامنة بنجاح ✅");
+    return true;
+  }
+  statusDot.className = "off";
+  if (showMsg) showMsg("err", "مفيش اتصال بالنت دلوقتي (" + ((resp && resp.error) || "") + "). هتشتغل على آخر بيانات محفوظة.");
+  return false;
+}
+
+async function syncQueue() {
+  const q = getQueue();
+  if (!isConnected() || !q.length) return {sent: 0, failed: 0};
+  let sent = 0, failed = 0;
+  const remaining = [];
+  const orderOf = (it) => ({
+    items: [{sec_name: it.secName, W: it.W, H: it.H, qty: it.qty, glass_name: it.glassName}],
+    c_name: it.custName, c_phone: it.custPhone
+  });
+  for (const it of q) {
+    const resp = await sheetDirectRequest("submit_quote", "POST", {order: orderOf(it)});
+    if (resp && resp.ok) { sent++; } else { failed++; remaining.push(it); }
+  }
+  setQueue(remaining);
+  renderQueue();
+  return {sent, failed};
+}
+
+document.getElementById("syncBtn").addEventListener("click", async () => {
+  const ok = await doSync((kind, text) => { syncInfo.textContent = text; setTimeout(() => fillDropdowns(), 1200); });
+  if (ok) {
+    const r = await syncQueue();
+    if (r.sent || r.failed) {
+      syncInfo.textContent = "اتبعت " + r.sent + " للشيت" + (r.failed ? " (وفشل " + r.failed + ")" : "");
+    }
+  }
+});
+
+document.getElementById("calcBtn").addEventListener("click", () => {
+  const resultCard = document.getElementById("resultCard");
+  const resultBody = document.getElementById("resultBody");
+  const resultTotal = document.getElementById("resultTotal");
+  const snap = getSnapshot();
+  if (!snap) { alert("لسه مفيش بيانات متزامنة. اتصل بالنت ودوس مزامنة."); return; }
+  const secName = secSelect.value;
+  const sec = (snap.sections || {})[secName];
+  const W = toF(document.getElementById("wInput").value);
+  const H = toF(document.getElementById("hInput").value);
+  const qty = Math.max(1, parseInt(document.getElementById("qtyInput").value) || 1);
+  const glassName = glassSelect.value;
+  const glassPrice = toF((snap.glass_types || []).find(g => g.name === glassName)?.price);
+  if (!sec || !W || !H) { alert("اختار القطاع واكتب العرض والارتفاع."); return; }
+  try {
+    const d = computeEstimate(sec, W, H, glassPrice, toF(snap.price_kg), toF(snap.profit_pct), snap.pricing);
+    let html = "";
+    html += '<div class="result-line"><span>عود الحلق (عرض × ارتفاع)</span><b>' + fmt(d.FW) + ' × ' + fmt(d.FH) + ' سم</b></div>';
+    html += '<div class="result-line"><span>عود الضلفة (عرض × ارتفاع)</span><b>' + fmt(d.SW) + ' × ' + fmt(d.SH) + ' سم</b></div>';
+    html += '<div class="result-line"><span>لوح الزجاج (' + glassName + ')</span><b>' + fmt(d.GW) + ' × ' + fmt(d.GH) + ' سم</b></div>';
+    html += '<div class="result-line"><span>عدد الضلف</span><b>' + d.numPanes + '</b></div>';
+    resultBody.innerHTML = html;
+    const totalForQty = d.sellingPrice * qty;
+    resultTotal.textContent = "السعر التقديري: " + fmt(totalForQty) + " جنيه" + (qty > 1 ? " (لـ " + qty + ")" : "");
+    resultCard.classList.remove("hidden");
+    resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, price: totalForQty, unitPrice: d.sellingPrice});
+    resultCard.scrollIntoView({behavior: "smooth"});
+  } catch (e) {
+    resultBody.innerHTML = '<div class="err">' + e.message + '</div>';
+    resultTotal.textContent = "";
+    resultCard.classList.remove("hidden");
+  }
+});
+
+document.getElementById("saveQueueBtn").addEventListener("click", () => {
+  const resultCard = document.getElementById("resultCard");
+  const calc = JSON.parse(resultCard.dataset.calc || "null");
+  if (!calc) return;
+  const phone = document.getElementById("custPhone").value.trim();
+  if (!phone) { alert("لازم تكتب رقم تليفون العميل الأول (عشان نقدر نلاحظ لو فيه تكرار)."); return; }
+  const q = getQueue();
+  q.push({
+    id: Date.now(),
+    time: new Date().toLocaleString("ar-EG"),
+    secName: calc.secName, W: calc.W, H: calc.H, qty: calc.qty, glassName: calc.glassName,
+    price: calc.price, unitPrice: calc.unitPrice,
+    custName: document.getElementById("custName").value.trim(),
+    custPhone: phone,
+    notes: document.getElementById("notesInput").value.trim()
+  });
+  setQueue(q);
+  renderQueue();
+  alert("اتحفظت في قائمة الانتظار ✅");
+  syncQueue();
+});
+
+function renderQueue() {
+  const q = getQueue();
+  const list = document.getElementById("queueList");
+  const empty = document.getElementById("queueEmpty");
+  document.getElementById("queueCount").textContent = q.length ? "(" + q.length + ")" : "";
+  if (!q.length) { list.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  list.innerHTML = q.slice().reverse().map(it => `
+    <div class="pending-item">
+      <div class="top">
+        <span class="name">${it.secName}</span>
+        <span class="price">${fmt(it.price)} ج</span>
+      </div>
+      <div class="muted">${fmt(it.W)} × ${fmt(it.H)} سم - عدد ${it.qty} - ${it.glassName}</div>
+      ${it.custName || it.custPhone ? '<div class="muted">👤 ' + (it.custName || "") + ' ' + (it.custPhone || "") + '</div>' : ""}
+      <div class="muted">${it.time}</div>
+      <span class="tag">لسه محتاجة مزامنة</span>
+      <button class="btn-sm btn-red" style="float:left" onclick="deleteQueueItem(${it.id})">حذف</button>
+    </div>
+  `).join("");
+}
+
+function deleteQueueItem(id) {
+  setQueue(getQueue().filter(it => it.id !== id));
+  renderQueue();
+}
+window.deleteQueueItem = deleteQueueItem;
+
+// ---------------------------------------------------------------
+// تبويب "متابعة": آخر الشغلانات وسجل الأنشطة وتنبيه المراجعة المعلّقة
+// (البيانات دي بتتبعت للشيت من البرنامج مع كل ضغطة "مزامنة دلوقتي")
+// ---------------------------------------------------------------
+const tabQuoteBtn = document.getElementById("tabQuoteBtn");
+const tabTrackBtn = document.getElementById("tabTrackBtn");
+const quoteScreen = document.getElementById("quoteScreen");
+const trackScreen = document.getElementById("trackScreen");
+const trackBadge = document.getElementById("trackBadge");
+let overviewLoaded = false;
+
+function showTab(which) {
+  const isTrack = which === "track";
+  quoteScreen.classList.toggle("hidden", isTrack);
+  trackScreen.classList.toggle("hidden", !isTrack);
+  tabQuoteBtn.classList.toggle("active", !isTrack);
+  tabTrackBtn.classList.toggle("active", isTrack);
+  if (isTrack && !overviewLoaded) loadOverview();
+}
+tabQuoteBtn.addEventListener("click", () => showTab("quote"));
+tabTrackBtn.addEventListener("click", () => showTab("track"));
+document.getElementById("refreshTrackBtn").addEventListener("click", () => loadOverview());
+document.getElementById("actRangeSelect").addEventListener("change", () => loadOverview());
+document.getElementById("actTypeSelect").addEventListener("change", () => renderActivity(lastActivityRows));
+
+function statusClass(st) {
+  return "status-" + String(st || "").trim().replace(/\s+/g, "-");
+}
+
+function shortJobRef(jobId) {
+  const tail = String(jobId || "").split("-").pop();
+  return /^\d+$/.test(tail) ? tail : String(jobId || "");
+}
+
+function renderJobs(jobs) {
+  const list = document.getElementById("jobsList");
+  const empty = document.getElementById("jobsEmpty");
+  if (!jobs || !jobs.length) { list.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  list.innerHTML = jobs.map(j => `
+    <div class="job-item">
+      <div class="top">
+        <span class="name">${j.name || "(من غير اسم)"}</span>
+        <span class="status-pill ${statusClass(j.status)}">${j.status}</span>
+      </div>
+      <div class="muted">#${shortJobRef(j.job_id)}${j.phone ? " - " + j.phone : ""}${j.source === "موبايل" ? " - 📱 من الموبايل" : ""}</div>
+      ${j.total !== null && j.total !== undefined ? '<div class="muted">الإجمالي: ' + fmt(j.total) + ' ج' + (j.remaining ? " (متبقي " + fmt(j.remaining) + " ج)" : "") + '</div>' : ""}
+      <div class="muted">${j.time}</div>
+    </div>
+  `).join("");
+}
+
+let lastActivityRows = [];
+
+function activityType(action) {
+  if (action === "دخول البرنامج") return "login";
+  if (action === "حركة مخزن") return "stock";
+  return "work";
+}
+
+function renderActivity(allRows) {
+  lastActivityRows = allRows || [];
+  const typeSel = document.getElementById("actTypeSelect").value || "all";
+  const rows = typeSel === "all" ? lastActivityRows : lastActivityRows.filter(r => activityType(r.action) === typeSel);
+  const list = document.getElementById("activityList");
+  const empty = document.getElementById("activityEmpty");
+  if (!rows || !rows.length) { list.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  list.innerHTML = rows.map(r => `
+    <div class="act-item">
+      <div><span class="act-action">${r.action}</span> - ${r.actor || ""}</div>
+      <div>${r.detail || ""}</div>
+      <div class="act-time">${r.time}</div>
+    </div>
+  `).join("");
+}
+
+// نفس منطق فلترة المدى الزمني اللي في البرنامج (filter_activity_rows)، منقول هنا
+// عشان الفلترة بقت في المتصفح (البيانات بتوصلنا كاملة من الشيت)
+function parseRowTime(s) {
+  const parts = (s || "").split(" ");
+  if (parts.length < 2) return null;
+  const [Y, M, D] = parts[0].split("-").map(Number);
+  const [h, mi] = parts[1].split(":").map(Number);
+  if (!Y || !M || !D) return null;
+  return new Date(Y, M - 1, D, h || 0, mi || 0);
+}
+function filterByRange(rows, rangeKey) {
+  if (!rangeKey || rangeKey === "all") return rows;
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let start, end = null;
+  if (rangeKey === "today") { start = midnight; }
+  else if (rangeKey === "yesterday") { start = new Date(midnight.getTime() - 86400000); end = midnight; }
+  else if (rangeKey === "3days") { start = new Date(midnight.getTime() - 2 * 86400000); }
+  else if (rangeKey === "week") { start = new Date(midnight.getTime() - 6 * 86400000); }
+  else return rows;
+  return (rows || []).filter(r => {
+    const t = parseRowTime(r.time);
+    if (!t) return false;
+    if (t < start) return false;
+    if (end && t >= end) return false;
+    return true;
+  });
+}
+
+async function loadOverview() {
+  const offlineMsg = document.getElementById("trackOffline");
+  if (!isConnected()) return;
+  const resp = await sheetDirectRequest("activity", "GET");
+  if (!resp || !resp.ok) {
+    offlineMsg.textContent = "مفيش اتصال بالنت دلوقتي - المتابعة محتاجة إنترنت شغال.";
+    return;
+  }
+  overviewLoaded = true;
+  offlineMsg.textContent = "";
+  const data = resp.rows || {};
+  const range = document.getElementById("actRangeSelect").value || "today";
+  renderJobs(data.jobs);
+  renderActivity(filterByRange(data.activity, range));
+  const pendCard = document.getElementById("pendingReviewCard");
+  const n = data.pending_review || 0;
+  if (n > 0) {
+    pendCard.classList.remove("hidden");
+    document.getElementById("pendingReviewText").textContent =
+      "فيه " + n + " عرض من الموبايل محتاج مراجعتك - افتحه من البرنامج على الكمبيوتر.";
+    trackBadge.classList.remove("hidden");
+    trackBadge.textContent = n > 9 ? "9+" : n;
+  } else {
+    pendCard.classList.add("hidden");
+    trackBadge.classList.add("hidden");
+  }
+}
+
+// ---------------------------------------------------------------
+// مزامنة تلقائية كل شوية (قائمة الانتظار + تحديث الأسعار)
+// ---------------------------------------------------------------
+const AUTO_INTERVAL_MS = 120000;
+
+async function autoTick() {
+  if (!isConnected() || document.hidden) return;
+  const r = await syncQueue();
+  if (r.sent) { syncInfo.textContent = "اتبعت " + r.sent + " تلقائيًا للشيت ✅"; }
+  const ok = await doSync();
+  if (ok && !trackScreen.classList.contains("hidden")) loadOverview();
+}
+setInterval(autoTick, AUTO_INTERVAL_MS);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) autoTick(); });
+
+// بدء التشغيل
+showScreen();
+fillDropdowns();
+renderQueue();
+if (isConnected()) { doSync().then((ok) => { if (ok) syncQueue(); }); loadOverview(); }
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>

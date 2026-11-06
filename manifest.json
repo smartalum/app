@@ -1,0 +1,12 @@
+{
+  "name": "Smart Alum Core - موبايل",
+  "short_name": "ورشتي",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#1e3a8a",
+  "lang": "ar",
+  "dir": "rtl",
+  "icons": []
+}

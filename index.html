@@ -141,6 +141,10 @@
       <label>نوع الزجاج</label>
       <select id="glassSelect"></select>
 
+      <label>نوع الإكسسوار</label>
+      <select id="originModeSelect"></select>
+      <div id="originMixBox" style="display:none;"></div>
+
       <label>اسم العميل (اختياري)</label>
       <input id="custName" type="text">
 
@@ -334,7 +338,38 @@ function getPricing(sec) {
   return {mode, frame_price_m: toF(sec.frame_price_m), sash_price_m: toF(sec.sash_price_m), div_price_m: toF(sec.div_price_m), knife_price_m: toF(sec.knife_price_m)};
 }
 
-function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts) {
+function accessoryOriginGroups(sec) {
+  // بيرجع الأصناف اللي ليها أكتر من منشأ (سعر مختلف) في القطاع ده، زي نسخة الكمبيوتر بالظبط
+  const groups = {};
+  (sec.accessories || []).forEach(it => {
+    (groups[it.name] = groups[it.name] || []).push(it.origin || "بدون تحديد");
+  });
+  const out = {};
+  Object.keys(groups).forEach(name => {
+    const uniq = Array.from(new Set(groups[name]));
+    if (uniq.length > 1) out[name] = uniq;
+  });
+  return out;
+}
+
+function effectiveAccessoryRows(sec, choice) {
+  // صف واحد بس لكل اسم صنف، زي effective_accessory_rows في البرنامج بالظبط
+  const groups = {};
+  (sec.accessories || []).forEach(it => {
+    (groups[it.name] = groups[it.name] || []).push(it);
+  });
+  const result = [];
+  Object.keys(groups).forEach(name => {
+    const rows = groups[name];
+    if (rows.length === 1) { result.push(rows[0]); return; }
+    const chosen = choice && choice[name];
+    const match = rows.find(r => (r.origin || "بدون تحديد") === chosen);
+    result.push(match || rows[0]);
+  });
+  return result;
+}
+
+function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOriginChoice) {
   const {SW, SH, FW, FH, DW, DH} = getDims(sec, W, H);
   const meshWf = sec.mesh_w_formula, meshHf = sec.mesh_h_formula;
   const hasMesh = !!(meshWf && meshWf.trim()) && !!(meshHf && meshHf.trim());
@@ -385,12 +420,12 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts) {
   const ctx = {W, H, SW, SH, FW, FH, DW, DH, GW, GH, GA: glassArea, NS: numPanes, KL, KN: knN};
   let totalAcc = 0;
   const accRows = [];
-  for (const item of (sec.accessories || [])) {
+  for (const item of effectiveAccessoryRows(sec, accOriginChoice)) {
     const qty = toF(safeEval(item.qty_formula || "1", ctx));
     const price = toF(item.price);
     const total = qty * price;
     totalAcc += total;
-    accRows.push({name: item.name, qty, price, total});
+    accRows.push({name: item.name, qty, price, total, origin: item.origin || ""});
   }
   const glassWastePct = Math.max(toF(sec.glass_waste_pct), 0);
   const po = opts || {};
@@ -427,7 +462,10 @@ const mainScreen = document.getElementById("mainScreen");
 const statusDot = document.getElementById("statusDot");
 const secSelect = document.getElementById("secSelect");
 const glassSelect = document.getElementById("glassSelect");
+const originModeSelect = document.getElementById("originModeSelect");
+const originMixBox = document.getElementById("originMixBox");
 const syncInfo = document.getElementById("syncInfo");
+let accOriginChoice = {};
 
 function fmt(n) {
   if (n === null || n === undefined || isNaN(n)) return "-";
@@ -593,8 +631,77 @@ function fillDropdowns() {
     if (g.name === snap.glass_default) o.selected = true;
     glassSelect.appendChild(o);
   });
+  fillOriginModeSelect(snap);
+  applyOriginMode();
   syncInfo.textContent = "آخر مزامنة: " + (snap.time || "-") + " (" + (snap.workshop_name || "") + ")";
 }
+
+// ---------------------------------------------------------------
+// نوع الإكسسوار (تركي/مصري/توليفة) - نفس منطق الكمبيوتر بالظبط، بس هنا في المتصفح
+// ---------------------------------------------------------------
+function fillOriginModeSelect(snap) {
+  originModeSelect.innerHTML = "";
+  const blank = document.createElement("option");
+  blank.value = ""; blank.textContent = "بدون تحديد";
+  originModeSelect.appendChild(blank);
+  (snap.accessory_origins || []).forEach(o => {
+    const op = document.createElement("option");
+    op.value = o; op.textContent = o;
+    originModeSelect.appendChild(op);
+  });
+  const mixOp = document.createElement("option");
+  mixOp.value = "توليفة"; mixOp.textContent = "توليفة";
+  originModeSelect.appendChild(mixOp);
+}
+
+function buildOriginMixBox() {
+  const snap = getSnapshot();
+  const sec = snap && (snap.sections || {})[secSelect.value];
+  if (!sec) { originMixBox.style.display = "none"; originMixBox.innerHTML = ""; return; }
+  const groups = accessoryOriginGroups(sec);
+  const names = Object.keys(groups);
+  if (!names.length) {
+    originMixBox.style.display = "none";
+    originMixBox.innerHTML = "";
+    return;
+  }
+  originMixBox.innerHTML = '<div class="muted" style="margin:8px 0 4px;">اختار منشأ كل صنف:</div>' +
+    names.map(name => {
+      const origins = groups[name];
+      const current = (accOriginChoice[name] && origins.includes(accOriginChoice[name])) ? accOriginChoice[name] : origins[0];
+      accOriginChoice[name] = current;
+      return '<div class="row2" style="align-items:center; margin-bottom:6px;">' +
+        '<div style="flex:2;">' + name + '</div>' +
+        '<select data-acc-name="' + name + '" style="flex:1;">' +
+        origins.map(o => '<option value="' + o + '"' + (o === current ? ' selected' : '') + '>' + o + '</option>').join('') +
+        '</select></div>';
+    }).join('');
+  originMixBox.querySelectorAll('select[data-acc-name]').forEach(sel => {
+    sel.addEventListener('change', () => { accOriginChoice[sel.dataset.accName] = sel.value; });
+  });
+  originMixBox.style.display = "block";
+}
+
+function applyOriginMode() {
+  const mode = originModeSelect.value;
+  if (mode === "توليفة") {
+    buildOriginMixBox();
+    return;
+  }
+  originMixBox.style.display = "none";
+  originMixBox.innerHTML = "";
+  if (!mode) return;
+  const snap = getSnapshot();
+  const sec = snap && (snap.sections || {})[secSelect.value];
+  if (!sec) return;
+  const groups = accessoryOriginGroups(sec);
+  Object.keys(groups).forEach(name => {
+    if (groups[name].includes(mode)) accOriginChoice[name] = mode;
+  });
+}
+
+originModeSelect.addEventListener("change", applyOriginMode);
+secSelect.addEventListener("change", () => { accOriginChoice = {}; applyOriginMode(); });
 
 async function doSync(showMsg) {
   if (!isConnected()) return false;
@@ -618,7 +725,7 @@ async function syncQueue() {
   let sent = 0, failed = 0;
   const remaining = [];
   const orderOf = (it) => ({
-    items: [{sec_name: it.secName, W: it.W, H: it.H, qty: it.qty, glass_name: it.glassName}],
+    items: [{sec_name: it.secName, W: it.W, H: it.H, qty: it.qty, glass_name: it.glassName, acc_origins: it.accOrigins || {}}],
     c_name: it.custName, c_phone: it.custPhone
   });
   for (const it of q) {
@@ -655,7 +762,7 @@ document.getElementById("calcBtn").addEventListener("click", () => {
   const glassPrice = toF((snap.glass_types || []).find(g => g.name === glassName)?.price);
   if (!sec || !W || !H) { alert("اختار القطاع واكتب العرض والارتفاع."); return; }
   try {
-    const d = computeEstimate(sec, W, H, glassPrice, toF(snap.price_kg), toF(snap.profit_pct), snap.pricing);
+    const d = computeEstimate(sec, W, H, glassPrice, toF(snap.price_kg), toF(snap.profit_pct), snap.pricing, accOriginChoice);
     let html = "";
     html += '<div class="result-line"><span>عود الحلق (عرض × ارتفاع)</span><b>' + fmt(d.FW) + ' × ' + fmt(d.FH) + ' سم</b></div>';
     html += '<div class="result-line"><span>عود الضلفة (عرض × ارتفاع)</span><b>' + fmt(d.SW) + ' × ' + fmt(d.SH) + ' سم</b></div>';
@@ -665,7 +772,7 @@ document.getElementById("calcBtn").addEventListener("click", () => {
     const totalForQty = d.sellingPrice * qty;
     resultTotal.textContent = "السعر التقديري: " + fmt(totalForQty) + " جنيه" + (qty > 1 ? " (لـ " + qty + ")" : "");
     resultCard.classList.remove("hidden");
-    resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, price: totalForQty, unitPrice: d.sellingPrice});
+    resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, price: totalForQty, unitPrice: d.sellingPrice, accOrigins: Object.assign({}, accOriginChoice)});
     resultCard.scrollIntoView({behavior: "smooth"});
   } catch (e) {
     resultBody.innerHTML = '<div class="err">' + e.message + '</div>';
@@ -685,7 +792,7 @@ document.getElementById("saveQueueBtn").addEventListener("click", () => {
     id: Date.now(),
     time: new Date().toLocaleString("ar-EG"),
     secName: calc.secName, W: calc.W, H: calc.H, qty: calc.qty, glassName: calc.glassName,
-    price: calc.price, unitPrice: calc.unitPrice,
+    price: calc.price, unitPrice: calc.unitPrice, accOrigins: calc.accOrigins || {},
     custName: document.getElementById("custName").value.trim(),
     custPhone: phone,
     notes: document.getElementById("notesInput").value.trim()

@@ -115,6 +115,7 @@
     <div class="tabbar">
       <button class="tabbtn active" id="tabQuoteBtn">📊 مقايسة</button>
       <button class="tabbtn" id="tabTrackBtn">📋 متابعة<span class="badge hidden" id="trackBadge">0</span></button>
+      <button class="tabbtn" id="tabAdminBtn">⚙️ إدارة<span class="badge hidden" id="adminBadge">0</span></button>
     </div>
 
     <div id="quoteScreen">
@@ -235,6 +236,57 @@
 
     </div>
 
+    <div id="adminScreen" class="hidden">
+
+      <div class="card">
+        <h2>💰 تعديل الأسعار</h2>
+        <label>سعر الكيلو (ألومنيوم/UPVC)</label>
+        <input id="adminPriceKg" type="number" inputmode="decimal">
+        <label>نسبة الربح (%)</label>
+        <input id="adminProfitPct" type="number" inputmode="decimal">
+        <label>سعر نوع زجاج (اختياري)</label>
+        <select id="adminGlassSelect"></select>
+        <input id="adminGlassPrice" type="number" inputmode="decimal" placeholder="سعر المتر المربع الجديد (سيبه فاضي لو مش هتغيره)">
+        <button class="btn-main" id="adminSavePricesBtn">💾 حفظ الأسعار</button>
+        <p class="muted">التعديل هيتطبق على الكمبيوتر أول ما يتزامن.</p>
+      </div>
+
+      <div class="card">
+        <h2>📦 حركة مخزن (وارد / صرف)</h2>
+        <label>القسم</label>
+        <select id="adminStockCat"></select>
+        <label>الصنف</label>
+        <select id="adminStockItem"></select>
+        <p class="muted" id="adminStockCurrentQty"></p>
+        <label>الكمية</label>
+        <input id="adminStockQty" type="number" inputmode="decimal" min="0">
+        <label>سبب الحركة (اختياري)</label>
+        <input id="adminStockReason" type="text" placeholder="مثلاً: استلام توريد جديد">
+        <div class="row2">
+          <button class="btn-green" id="adminStockInBtn">➕ وارد</button>
+          <button class="btn-red" id="adminStockOutBtn">➖ صرف</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>🧾 إضافة مصروف</h2>
+        <label>النوع</label>
+        <select id="adminExpenseCat"></select>
+        <label>المبلغ (جنيه)</label>
+        <input id="adminExpenseAmount" type="number" inputmode="decimal">
+        <label>ملاحظة (اختياري)</label>
+        <input id="adminExpenseNote" type="text">
+        <button class="btn-main" id="adminAddExpenseBtn">➕ إضافة المصروف</button>
+      </div>
+
+      <div class="card">
+        <h2>إجراءات الإدارة اللي لسه محتاجة مزامنة <span id="adminQueueCount" class="muted"></span></h2>
+        <div id="adminQueueList"></div>
+        <p class="muted" id="adminQueueEmpty">مفيش حاجة محفوظة لسه.</p>
+      </div>
+
+    </div>
+
   </div>
 
 </div>
@@ -255,7 +307,7 @@
 // ---------------------------------------------------------------
 // تخزين محلي: رابط وتوكن الشيت (بديل الاتصال بالكمبيوتر تمامًا)، آخر بيانات مزامنة، وقائمة الانتظار
 // ---------------------------------------------------------------
-const LS_SNAPSHOT = "sac_snapshot", LS_QUEUE = "sac_queue", LS_CURRENT = "sac_current_items";
+const LS_SNAPSHOT = "sac_snapshot", LS_QUEUE = "sac_queue", LS_CURRENT = "sac_current_items", LS_ADMIN_QUEUE = "sac_admin_queue";
 const LS_SHEET_URL = "sac_sheet_url", LS_SHEET_TOKEN = "sac_sheet_token", LS_WORKSHOP_NAME = "sac_workshop_name";
 const NO_GLASS = "بدون زجاج";
 
@@ -266,6 +318,8 @@ function getQueue() { try { return JSON.parse(localStorage.getItem(LS_QUEUE) || 
 function setQueue(q) { try { localStorage.setItem(LS_QUEUE, JSON.stringify(q)); } catch (e) {} }
 function getCurrentItems() { try { return JSON.parse(localStorage.getItem(LS_CURRENT) || "[]"); } catch (e) { return []; } }
 function setCurrentItems(items) { try { localStorage.setItem(LS_CURRENT, JSON.stringify(items)); } catch (e) {} }
+function getAdminQueue() { try { return JSON.parse(localStorage.getItem(LS_ADMIN_QUEUE) || "[]"); } catch (e) { return []; } }
+function setAdminQueue(q) { try { localStorage.setItem(LS_ADMIN_QUEUE, JSON.stringify(q)); } catch (e) {} }
 
 // بنكلم الشيت على طول دايمًا - مفيش كمبيوتر/شبكة محلية في الموضوع خالص.
 // بنبعت POST بـ text/plain مش application/json عشان نتجنب مشكلة CORS preflight مع جوجل سكريبت.
@@ -471,7 +525,8 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
   const sellingPrice = po.profit_mode === "mat"
     ? totalCost * (1 + profitPct / 100) + laborCost + overheadCost
     : (totalCost + laborCost + overheadCost) * (1 + profitPct / 100);
-  return {SW, SH, FW, FH, DW, DH, GW, GH, hasMesh, meshW, meshH, numPanes, frameCount, totalKg,
+  const totalM = frM + saM + dvM + knM;
+  return {SW, SH, FW, FH, DW, DH, GW, GH, hasMesh, meshW, meshH, numPanes, frameCount, totalKg, totalM,
           aluCost, aluBase, wastePct, wasteAmt, glassArea, glassBaseCost, glassWastePct, glassWasteAmt, glassCost, accRows, totalAcc,
           totalCost, sellingPrice, pricingMode: pricing.mode, dwN, dhN, knN, KL};
 }
@@ -661,6 +716,170 @@ function fillDropdowns() {
   fillOriginModeSelect(snap);
   applyOriginMode();
   syncInfo.textContent = "آخر مزامنة: " + (snap.time || "-") + " (" + (snap.workshop_name || "") + ")";
+  fillAdminDropdowns(snap);
+}
+
+// ---------------------------------------------------------------
+// تبويب "إدارة": تعديل أسعار / حركة مخزن / إضافة مصروف من الموبايل
+// ---------------------------------------------------------------
+function fillAdminDropdowns(snap) {
+  const priceKgEl = document.getElementById("adminPriceKg");
+  const profitEl = document.getElementById("adminProfitPct");
+  if (document.activeElement !== priceKgEl) priceKgEl.value = snap.price_kg || "";
+  if (document.activeElement !== profitEl) profitEl.value = snap.profit_pct || "";
+
+  const glassSel = document.getElementById("adminGlassSelect");
+  glassSel.innerHTML = "";
+  (snap.glass_types || []).forEach(g => {
+    const o = document.createElement("option");
+    o.value = g.name; o.textContent = g.name + " (حاليًا " + g.price + " ج/م²)";
+    glassSel.appendChild(o);
+  });
+
+  const catSel = document.getElementById("adminStockCat");
+  const stockCats = snap.stock_cats || {};
+  const prevCat = catSel.value;
+  catSel.innerHTML = "";
+  Object.keys(stockCats).forEach(key => {
+    const o = document.createElement("option");
+    o.value = key; o.textContent = stockCats[key];
+    catSel.appendChild(o);
+  });
+  if (prevCat && Array.from(catSel.options).some(o => o.value === prevCat)) catSel.value = prevCat;
+  fillAdminStockItems();
+
+  const expSel = document.getElementById("adminExpenseCat");
+  const prevExp = expSel.value;
+  expSel.innerHTML = "";
+  (snap.expense_cats || []).forEach(c => {
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c;
+    expSel.appendChild(o);
+  });
+  if (prevExp && Array.from(expSel.options).some(o => o.value === prevExp)) expSel.value = prevExp;
+}
+
+function fillAdminStockItems() {
+  const snap = getSnapshot();
+  const cat = document.getElementById("adminStockCat").value;
+  const itemSel = document.getElementById("adminStockItem");
+  const items = (snap && snap.stock_items && snap.stock_items[cat]) || [];
+  itemSel.innerHTML = "";
+  items.forEach(it => {
+    const o = document.createElement("option");
+    o.value = it.name; o.textContent = it.name + " (" + it.unit + ")";
+    o.dataset.qty = it.qty; o.dataset.unit = it.unit;
+    itemSel.appendChild(o);
+  });
+  updateAdminStockCurrentQty();
+}
+
+function updateAdminStockCurrentQty() {
+  const itemSel = document.getElementById("adminStockItem");
+  const o = itemSel.options[itemSel.selectedIndex];
+  const txt = document.getElementById("adminStockCurrentQty");
+  txt.textContent = o ? ("الرصيد الحالي (آخر مزامنة): " + fmt(toF(o.dataset.qty)) + " " + (o.dataset.unit || "")) : "";
+}
+
+document.getElementById("adminStockCat").addEventListener("change", fillAdminStockItems);
+document.getElementById("adminStockItem").addEventListener("change", updateAdminStockCurrentQty);
+
+document.getElementById("adminSavePricesBtn").addEventListener("click", () => {
+  const priceKg = toF(document.getElementById("adminPriceKg").value);
+  const profitPct = toF(document.getElementById("adminProfitPct").value);
+  const glassName = document.getElementById("adminGlassSelect").value;
+  const glassPriceRaw = document.getElementById("adminGlassPrice").value.trim();
+  const action = {kind: "price_update"};
+  let changed = false;
+  if (priceKg > 0) { action.price_kg = priceKg; changed = true; }
+  if (profitPct >= 0 && document.getElementById("adminProfitPct").value.trim() !== "") { action.profit_pct = profitPct; changed = true; }
+  if (glassName && glassPriceRaw !== "") {
+    action.glass_updates = [{name: glassName, price: toF(glassPriceRaw)}];
+    changed = true;
+  }
+  if (!changed) { alert("مكتبتش أي تعديل. اكتب سعر الكيلو أو نسبة الربح أو سعر نوع زجاج."); return; }
+  pushAdminAction(action, "تعديل أسعار");
+  document.getElementById("adminGlassPrice").value = "";
+  alert("اتحفظ التعديل، هيتطبق على الكمبيوتر أول ما يتزامن ✅");
+});
+
+function doAdminStockMove(sign) {
+  const cat = document.getElementById("adminStockCat").value;
+  const itemSel = document.getElementById("adminStockItem");
+  const name = itemSel.value;
+  const qty = toF(document.getElementById("adminStockQty").value);
+  const reason = document.getElementById("adminStockReason").value.trim();
+  if (!cat || !name) { alert("اختار القسم والصنف."); return; }
+  if (!qty || qty <= 0) { alert("اكتب كمية أكبر من صفر."); return; }
+  const action = {kind: "stock_move", cat, name, delta: sign * qty, reason: reason || (sign > 0 ? "وارد من الموبايل" : "صرف من الموبايل")};
+  pushAdminAction(action, (sign > 0 ? "وارد مخزن" : "صرف مخزن") + ": " + name + " (" + qty + ")");
+  document.getElementById("adminStockQty").value = "";
+  document.getElementById("adminStockReason").value = "";
+  alert("اتحفظت الحركة، هتتطبق على المخزن أول ما يتزامن ✅");
+}
+document.getElementById("adminStockInBtn").addEventListener("click", () => doAdminStockMove(1));
+document.getElementById("adminStockOutBtn").addEventListener("click", () => doAdminStockMove(-1));
+
+document.getElementById("adminAddExpenseBtn").addEventListener("click", () => {
+  const cat = document.getElementById("adminExpenseCat").value;
+  const amount = toF(document.getElementById("adminExpenseAmount").value);
+  const note = document.getElementById("adminExpenseNote").value.trim();
+  if (!cat) { alert("اختار نوع المصروف."); return; }
+  if (!amount || amount <= 0) { alert("اكتب مبلغ أكبر من صفر."); return; }
+  const today = new Date();
+  const dateStr = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
+  const action = {kind: "expense", date: dateStr, cat, amount, note};
+  pushAdminAction(action, "مصروف (" + cat + "): " + fmt(amount) + " ج");
+  document.getElementById("adminExpenseAmount").value = "";
+  document.getElementById("adminExpenseNote").value = "";
+  alert("اتحفظ المصروف، هيتسجل على الكمبيوتر أول ما يتزامن ✅");
+});
+
+function pushAdminAction(action, label) {
+  const q = getAdminQueue();
+  q.push({id: Date.now(), time: new Date().toLocaleString("ar-EG"), action, label});
+  setAdminQueue(q);
+  renderAdminQueue();
+  syncAdminQueue();
+}
+
+function renderAdminQueue() {
+  const q = getAdminQueue();
+  const list = document.getElementById("adminQueueList");
+  const empty = document.getElementById("adminQueueEmpty");
+  document.getElementById("adminQueueCount").textContent = q.length ? "(" + q.length + ")" : "";
+  document.getElementById("adminBadge").classList.toggle("hidden", !q.length);
+  document.getElementById("adminBadge").textContent = q.length > 9 ? "9+" : q.length;
+  if (!q.length) { list.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+  list.innerHTML = q.slice().reverse().map(it => `
+    <div class="pending-item">
+      <div class="top"><span class="name">${it.label}</span></div>
+      <div class="muted">${it.time}</div>
+      <span class="tag">لسه محتاجة مزامنة</span>
+      <button class="btn-sm btn-red" style="float:left" onclick="deleteAdminQueueItem(${it.id})">حذف</button>
+    </div>
+  `).join("");
+}
+
+function deleteAdminQueueItem(id) {
+  setAdminQueue(getAdminQueue().filter(it => it.id !== id));
+  renderAdminQueue();
+}
+window.deleteAdminQueueItem = deleteAdminQueueItem;
+
+async function syncAdminQueue() {
+  const q = getAdminQueue();
+  if (!isConnected() || !q.length) return {sent: 0, failed: 0};
+  let sent = 0, failed = 0;
+  const remaining = [];
+  for (const it of q) {
+    const resp = await sheetDirectRequest("submit_action", "POST", {action: it.action});
+    if (resp && resp.ok) { sent++; } else { failed++; remaining.push(it); }
+  }
+  setAdminQueue(remaining);
+  renderAdminQueue();
+  return {sent, failed};
 }
 
 // ---------------------------------------------------------------
@@ -783,8 +1002,10 @@ document.getElementById("syncBtn").addEventListener("click", async () => {
   const ok = await doSync((kind, text) => { syncInfo.textContent = text; setTimeout(() => fillDropdowns(), 1200); });
   if (ok) {
     const r = await syncQueue();
-    if (r.sent || r.failed) {
-      syncInfo.textContent = "اتبعت " + r.sent + " للشيت" + (r.failed ? " (وفشل " + r.failed + ")" : "");
+    const ra = await syncAdminQueue();
+    const sentTotal = r.sent + ra.sent, failedTotal = r.failed + ra.failed;
+    if (sentTotal || failedTotal) {
+      syncInfo.textContent = "اتبعت " + sentTotal + " للشيت" + (failedTotal ? " (وفشل " + failedTotal + ")" : "");
     }
   }
 });
@@ -816,11 +1037,19 @@ document.getElementById("calcBtn").addEventListener("click", () => {
       html += '<div class="result-line"><span>الزجاج</span><b>بدون زجاج</b></div>';
     }
     html += '<div class="result-line"><span>عدد الضلف</span><b>' + d.numPanes + '</b></div>';
+    if (d.pricingMode === "meter") {
+      html += '<div class="result-line"><span>طول الألومنيوم للوحدة الواحدة</span><b>' + fmt(d.totalM) + ' م</b></div>';
+      html += '<div class="result-line"><span>إجمالي الطول (× ' + qty + ')</span><b>' + fmt(d.totalM * qty) + ' م</b></div>';
+    } else {
+      html += '<div class="result-line"><span>وزن الألومنيوم للوحدة الواحدة</span><b>' + fmt(d.totalKg) + ' كجم</b></div>';
+      html += '<div class="result-line"><span>إجمالي الوزن (× ' + qty + ')</span><b>' + fmt(d.totalKg * qty) + ' كجم</b></div>';
+    }
     resultBody.innerHTML = html;
     const totalForQty = d.sellingPrice * qty;
     resultTotal.textContent = "السعر التقديري: " + fmt(totalForQty) + " جنيه" + (qty > 1 ? " (لـ " + qty + ")" : "");
     resultCard.classList.remove("hidden");
-    resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, itemKind, price: totalForQty, unitPrice: d.sellingPrice, accOrigins: Object.assign({}, accOriginChoice)});
+    resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, itemKind, price: totalForQty, unitPrice: d.sellingPrice,
+      pricingMode: d.pricingMode, totalKg: d.totalKg, totalM: d.totalM, accOrigins: Object.assign({}, accOriginChoice)});
     resultCard.scrollIntoView({behavior: "smooth"});
   } catch (e) {
     resultBody.innerHTML = '<div class="err">' + e.message + '</div>';
@@ -857,9 +1086,12 @@ function renderCurrentItems() {
   const totalEl = document.getElementById("currentItemsTotal");
   card.classList.toggle("hidden", !items.length);
   countEl.textContent = items.length ? "(" + items.length + ")" : "";
-  let total = 0;
+  let total = 0, totalKg = 0, totalM = 0;
   list.innerHTML = items.map(it => {
     total += toF(it.price);
+    const isMeter = it.pricingMode === "meter";
+    if (isMeter) totalM += toF(it.totalM) * toF(it.qty); else totalKg += toF(it.totalKg) * toF(it.qty);
+    const wline = isMeter ? (fmt(toF(it.totalM) * toF(it.qty)) + " م") : (fmt(toF(it.totalKg) * toF(it.qty)) + " كجم");
     return `
     <div class="pending-item">
       <div class="top">
@@ -867,11 +1099,15 @@ function renderCurrentItems() {
         <span class="price">${fmt(it.price)} ج</span>
       </div>
       <div class="muted">${fmt(it.W)} × ${fmt(it.H)} سم - عدد ${it.qty} - ${it.glassName}</div>
+      <div class="muted">${isMeter ? "طول الألومنيوم" : "وزن الألومنيوم"}: ${wline}</div>
       <button class="btn-sm btn-red" style="float:left" onclick="deleteCurrentItem(${it.rowId})">حذف</button>
     </div>
   `;
   }).join("");
-  totalEl.textContent = items.length ? "إجمالي العرض: " + fmt(total) + " جنيه" : "";
+  let totalLine = items.length ? "إجمالي العرض: " + fmt(total) + " جنيه" : "";
+  if (totalKg > 0) totalLine += " - إجمالي الوزن: " + fmt(totalKg) + " كجم";
+  if (totalM > 0) totalLine += " - إجمالي الطول: " + fmt(totalM) + " م";
+  totalEl.textContent = totalLine;
 }
 
 function deleteCurrentItem(rowId) {
@@ -945,21 +1181,25 @@ window.deleteQueueItem = deleteQueueItem;
 // ---------------------------------------------------------------
 const tabQuoteBtn = document.getElementById("tabQuoteBtn");
 const tabTrackBtn = document.getElementById("tabTrackBtn");
+const tabAdminBtn = document.getElementById("tabAdminBtn");
 const quoteScreen = document.getElementById("quoteScreen");
 const trackScreen = document.getElementById("trackScreen");
+const adminScreen = document.getElementById("adminScreen");
 const trackBadge = document.getElementById("trackBadge");
 let overviewLoaded = false;
 
 function showTab(which) {
-  const isTrack = which === "track";
-  quoteScreen.classList.toggle("hidden", isTrack);
-  trackScreen.classList.toggle("hidden", !isTrack);
-  tabQuoteBtn.classList.toggle("active", !isTrack);
-  tabTrackBtn.classList.toggle("active", isTrack);
-  if (isTrack && !overviewLoaded) loadOverview();
+  quoteScreen.classList.toggle("hidden", which !== "quote");
+  trackScreen.classList.toggle("hidden", which !== "track");
+  adminScreen.classList.toggle("hidden", which !== "admin");
+  tabQuoteBtn.classList.toggle("active", which === "quote");
+  tabTrackBtn.classList.toggle("active", which === "track");
+  tabAdminBtn.classList.toggle("active", which === "admin");
+  if (which === "track" && !overviewLoaded) loadOverview();
 }
 tabQuoteBtn.addEventListener("click", () => showTab("quote"));
 tabTrackBtn.addEventListener("click", () => showTab("track"));
+tabAdminBtn.addEventListener("click", () => showTab("admin"));
 document.getElementById("refreshTrackBtn").addEventListener("click", () => loadOverview());
 document.getElementById("actRangeSelect").addEventListener("change", () => loadOverview());
 document.getElementById("actTypeSelect").addEventListener("change", () => renderActivity(lastActivityRows));
@@ -1081,7 +1321,8 @@ const AUTO_INTERVAL_MS = 120000;
 async function autoTick() {
   if (!isConnected() || document.hidden) return;
   const r = await syncQueue();
-  if (r.sent) { syncInfo.textContent = "اتبعت " + r.sent + " تلقائيًا للشيت ✅"; }
+  const ra = await syncAdminQueue();
+  if (r.sent || ra.sent) { syncInfo.textContent = "اتبعت " + (r.sent + ra.sent) + " تلقائيًا للشيت ✅"; }
   const ok = await doSync();
   if (ok && !trackScreen.classList.contains("hidden")) loadOverview();
 }
@@ -1093,7 +1334,8 @@ showScreen();
 fillDropdowns();
 renderQueue();
 renderCurrentItems();
-if (isConnected()) { doSync().then((ok) => { if (ok) syncQueue(); }); loadOverview(); }
+renderAdminQueue();
+if (isConnected()) { doSync().then((ok) => { if (ok) { syncQueue(); syncAdminQueue(); } }); loadOverview(); }
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => {});

@@ -135,8 +135,19 @@
         </div>
       </div>
 
-      <label>العدد</label>
-      <input id="qtyInput" type="number" inputmode="numeric" value="1" min="1">
+      <div class="row2">
+        <div>
+          <label>العدد</label>
+          <input id="qtyInput" type="number" inputmode="numeric" value="1" min="1">
+        </div>
+        <div>
+          <label>نوع الوحدة</label>
+          <select id="itemKindSelect">
+            <option value="شباك">شباك</option>
+            <option value="باب">باب</option>
+          </select>
+        </div>
+      </div>
 
       <label>نوع الزجاج</label>
       <select id="glassSelect"></select>
@@ -144,6 +155,22 @@
       <label>نوع الإكسسوار</label>
       <select id="originModeSelect"></select>
       <div id="originMixBox" style="display:none;"></div>
+
+      <button class="btn-main" id="calcBtn">📊 احسب تقدير</button>
+    </div>
+
+    <div class="card hidden" id="resultCard">
+      <h2>التقدير</h2>
+      <div id="resultBody"></div>
+      <div class="total-box" id="resultTotal"></div>
+      <p class="muted">⚠️ تقدير تقريبي بأسعار آخر مزامنة، مش سعر نهائي. السعر الرسمي من البرنامج على الكمبيوتر.</p>
+      <button class="btn-green" id="addItemBtn">➕ ضيف الوحدة دي لعرض العميل</button>
+    </div>
+
+    <div class="card hidden" id="currentItemsCard">
+      <h2>بنود عرض العميل الحالي <span id="currentItemsCount" class="muted"></span></h2>
+      <div id="currentItemsList"></div>
+      <div class="total-box" id="currentItemsTotal"></div>
 
       <label>اسم العميل (اختياري)</label>
       <input id="custName" type="text">
@@ -154,15 +181,7 @@
       <label>ملاحظات (اختياري)</label>
       <textarea id="notesInput"></textarea>
 
-      <button class="btn-main" id="calcBtn">📊 احسب تقدير</button>
-    </div>
-
-    <div class="card hidden" id="resultCard">
-      <h2>التقدير</h2>
-      <div id="resultBody"></div>
-      <div class="total-box" id="resultTotal"></div>
-      <p class="muted">⚠️ تقدير تقريبي بأسعار آخر مزامنة، مش سعر نهائي. السعر الرسمي من البرنامج على الكمبيوتر.</p>
-      <button class="btn-green" id="saveQueueBtn">💾 حفظ في قائمة الانتظار</button>
+      <button class="btn-green" id="saveQueueBtn">💾 حفظ عرض العميل في قائمة الانتظار</button>
     </div>
 
     <div class="card">
@@ -236,14 +255,17 @@
 // ---------------------------------------------------------------
 // تخزين محلي: رابط وتوكن الشيت (بديل الاتصال بالكمبيوتر تمامًا)، آخر بيانات مزامنة، وقائمة الانتظار
 // ---------------------------------------------------------------
-const LS_SNAPSHOT = "sac_snapshot", LS_QUEUE = "sac_queue";
+const LS_SNAPSHOT = "sac_snapshot", LS_QUEUE = "sac_queue", LS_CURRENT = "sac_current_items";
 const LS_SHEET_URL = "sac_sheet_url", LS_SHEET_TOKEN = "sac_sheet_token", LS_WORKSHOP_NAME = "sac_workshop_name";
+const NO_GLASS = "بدون زجاج";
 
 function getSnapshot() { try { return JSON.parse(localStorage.getItem(LS_SNAPSHOT) || "null"); } catch (e) { return null; } }
 function getSheetUrl() { return localStorage.getItem(LS_SHEET_URL) || ""; }
 function getSheetToken() { return localStorage.getItem(LS_SHEET_TOKEN) || ""; }
 function getQueue() { try { return JSON.parse(localStorage.getItem(LS_QUEUE) || "[]"); } catch (e) { return []; } }
 function setQueue(q) { try { localStorage.setItem(LS_QUEUE, JSON.stringify(q)); } catch (e) {} }
+function getCurrentItems() { try { return JSON.parse(localStorage.getItem(LS_CURRENT) || "[]"); } catch (e) { return []; } }
+function setCurrentItems(items) { try { localStorage.setItem(LS_CURRENT, JSON.stringify(items)); } catch (e) {} }
 
 // بنكلم الشيت على طول دايمًا - مفيش كمبيوتر/شبكة محلية في الموضوع خالص.
 // بنبعت POST بـ text/plain مش application/json عشان نتجنب مشكلة CORS preflight مع جوجل سكريبت.
@@ -462,6 +484,7 @@ const mainScreen = document.getElementById("mainScreen");
 const statusDot = document.getElementById("statusDot");
 const secSelect = document.getElementById("secSelect");
 const glassSelect = document.getElementById("glassSelect");
+const itemKindSelect = document.getElementById("itemKindSelect");
 const originModeSelect = document.getElementById("originModeSelect");
 const originMixBox = document.getElementById("originMixBox");
 const syncInfo = document.getElementById("syncInfo");
@@ -631,6 +654,10 @@ function fillDropdowns() {
     if (g.name === snap.glass_default) o.selected = true;
     glassSelect.appendChild(o);
   });
+  const noGlassOpt = document.createElement("option");
+  noGlassOpt.value = NO_GLASS; noGlassOpt.textContent = NO_GLASS;
+  glassSelect.appendChild(noGlassOpt);
+  if (itemKindSelect.value === "باب") glassSelect.value = NO_GLASS;
   fillOriginModeSelect(snap);
   applyOriginMode();
   syncInfo.textContent = "آخر مزامنة: " + (snap.time || "-") + " (" + (snap.workshop_name || "") + ")";
@@ -703,6 +730,17 @@ function applyOriginMode() {
 originModeSelect.addEventListener("change", applyOriginMode);
 secSelect.addEventListener("change", () => { accOriginChoice = {}; applyOriginMode(); });
 
+itemKindSelect.addEventListener("change", () => {
+  if (itemKindSelect.value === "باب") {
+    glassSelect.value = NO_GLASS;
+  } else if (glassSelect.value === NO_GLASS) {
+    const snap = getSnapshot();
+    const def = snap && snap.glass_default;
+    const hasDef = def && Array.from(glassSelect.options).some(o => o.value === def);
+    glassSelect.value = hasDef ? def : (glassSelect.options.length ? glassSelect.options[0].value : "");
+  }
+});
+
 async function doSync(showMsg) {
   if (!isConnected()) return false;
   const resp = await sheetDirectRequest("snapshot", "GET");
@@ -724,10 +762,14 @@ async function syncQueue() {
   if (!isConnected() || !q.length) return {sent: 0, failed: 0};
   let sent = 0, failed = 0;
   const remaining = [];
-  const orderOf = (it) => ({
-    items: [{sec_name: it.secName, W: it.W, H: it.H, qty: it.qty, glass_name: it.glassName, acc_origins: it.accOrigins || {}}],
-    c_name: it.custName, c_phone: it.custPhone
-  });
+  const orderOf = (it) => {
+    // عرض فيه كذا بند (الوضع الجديد) أو بند واحد قديم اتحفظ قبل التحديث ده - الاتنين بيتبعتوا بنفس الشكل
+    const its = it.items || [{secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, itemKind: it.itemKind, accOrigins: it.accOrigins}];
+    return {
+      items: its.map(x => ({sec_name: x.secName, W: x.W, H: x.H, qty: x.qty, glass_name: x.glassName, item_kind: x.itemKind || "شباك", acc_origins: x.accOrigins || {}})),
+      c_name: it.custName, c_phone: it.custPhone
+    };
+  };
   for (const it of q) {
     const resp = await sheetDirectRequest("submit_quote", "POST", {order: orderOf(it)});
     if (resp && resp.ok) { sent++; } else { failed++; remaining.push(it); }
@@ -759,20 +801,26 @@ document.getElementById("calcBtn").addEventListener("click", () => {
   const H = toF(document.getElementById("hInput").value);
   const qty = Math.max(1, parseInt(document.getElementById("qtyInput").value) || 1);
   const glassName = glassSelect.value;
-  const glassPrice = toF((snap.glass_types || []).find(g => g.name === glassName)?.price);
+  const itemKind = itemKindSelect.value || "شباك";
+  const glassPrice = glassName === NO_GLASS ? 0 : toF((snap.glass_types || []).find(g => g.name === glassName)?.price);
   if (!sec || !W || !H) { alert("اختار القطاع واكتب العرض والارتفاع."); return; }
   try {
     const d = computeEstimate(sec, W, H, glassPrice, toF(snap.price_kg), toF(snap.profit_pct), snap.pricing, accOriginChoice);
     let html = "";
+    html += '<div class="result-line"><span>نوع الوحدة</span><b>' + itemKind + '</b></div>';
     html += '<div class="result-line"><span>عود الحلق (عرض × ارتفاع)</span><b>' + fmt(d.FW) + ' × ' + fmt(d.FH) + ' سم</b></div>';
     html += '<div class="result-line"><span>عود الضلفة (عرض × ارتفاع)</span><b>' + fmt(d.SW) + ' × ' + fmt(d.SH) + ' سم</b></div>';
-    html += '<div class="result-line"><span>لوح الزجاج (' + glassName + ')</span><b>' + fmt(d.GW) + ' × ' + fmt(d.GH) + ' سم</b></div>';
+    if (glassName !== NO_GLASS) {
+      html += '<div class="result-line"><span>لوح الزجاج (' + glassName + ')</span><b>' + fmt(d.GW) + ' × ' + fmt(d.GH) + ' سم</b></div>';
+    } else {
+      html += '<div class="result-line"><span>الزجاج</span><b>بدون زجاج</b></div>';
+    }
     html += '<div class="result-line"><span>عدد الضلف</span><b>' + d.numPanes + '</b></div>';
     resultBody.innerHTML = html;
     const totalForQty = d.sellingPrice * qty;
     resultTotal.textContent = "السعر التقديري: " + fmt(totalForQty) + " جنيه" + (qty > 1 ? " (لـ " + qty + ")" : "");
     resultCard.classList.remove("hidden");
-    resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, price: totalForQty, unitPrice: d.sellingPrice, accOrigins: Object.assign({}, accOriginChoice)});
+    resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, itemKind, price: totalForQty, unitPrice: d.sellingPrice, accOrigins: Object.assign({}, accOriginChoice)});
     resultCard.scrollIntoView({behavior: "smooth"});
   } catch (e) {
     resultBody.innerHTML = '<div class="err">' + e.message + '</div>';
@@ -781,25 +829,80 @@ document.getElementById("calcBtn").addEventListener("click", () => {
   }
 });
 
-document.getElementById("saveQueueBtn").addEventListener("click", () => {
+// ---------------------------------------------------------------
+// بنود عرض العميل الحالي: ممكن تضيف كذا صنف (شبابيك/أبواب مختلفة) قبل ما تحفظ العرض كله مرة واحدة
+// ---------------------------------------------------------------
+document.getElementById("addItemBtn").addEventListener("click", () => {
   const resultCard = document.getElementById("resultCard");
   const calc = JSON.parse(resultCard.dataset.calc || "null");
   if (!calc) return;
+  const items = getCurrentItems();
+  items.push(Object.assign({}, calc, {rowId: Date.now()}));
+  setCurrentItems(items);
+  renderCurrentItems();
+  // نفضي المقاسات بس عشان يبقى سهل يضيف وحدة تانية لنفس العميل
+  document.getElementById("wInput").value = "";
+  document.getElementById("hInput").value = "";
+  document.getElementById("qtyInput").value = "1";
+  resultCard.classList.add("hidden");
+  document.getElementById("currentItemsCard").classList.remove("hidden");
+  document.getElementById("currentItemsCard").scrollIntoView({behavior: "smooth"});
+});
+
+function renderCurrentItems() {
+  const items = getCurrentItems();
+  const card = document.getElementById("currentItemsCard");
+  const list = document.getElementById("currentItemsList");
+  const countEl = document.getElementById("currentItemsCount");
+  const totalEl = document.getElementById("currentItemsTotal");
+  card.classList.toggle("hidden", !items.length);
+  countEl.textContent = items.length ? "(" + items.length + ")" : "";
+  let total = 0;
+  list.innerHTML = items.map(it => {
+    total += toF(it.price);
+    return `
+    <div class="pending-item">
+      <div class="top">
+        <span class="name">${it.itemKind || "شباك"} - ${it.secName}</span>
+        <span class="price">${fmt(it.price)} ج</span>
+      </div>
+      <div class="muted">${fmt(it.W)} × ${fmt(it.H)} سم - عدد ${it.qty} - ${it.glassName}</div>
+      <button class="btn-sm btn-red" style="float:left" onclick="deleteCurrentItem(${it.rowId})">حذف</button>
+    </div>
+  `;
+  }).join("");
+  totalEl.textContent = items.length ? "إجمالي العرض: " + fmt(total) + " جنيه" : "";
+}
+
+function deleteCurrentItem(rowId) {
+  setCurrentItems(getCurrentItems().filter(it => it.rowId !== rowId));
+  renderCurrentItems();
+}
+window.deleteCurrentItem = deleteCurrentItem;
+
+document.getElementById("saveQueueBtn").addEventListener("click", () => {
+  const items = getCurrentItems();
+  if (!items.length) { alert("لسه مضفتش ولا وحدة (شباك/باب) للعرض ده."); return; }
   const phone = document.getElementById("custPhone").value.trim();
   if (!phone) { alert("لازم تكتب رقم تليفون العميل الأول (عشان نقدر نلاحظ لو فيه تكرار)."); return; }
   const q = getQueue();
   q.push({
     id: Date.now(),
     time: new Date().toLocaleString("ar-EG"),
-    secName: calc.secName, W: calc.W, H: calc.H, qty: calc.qty, glassName: calc.glassName,
-    price: calc.price, unitPrice: calc.unitPrice, accOrigins: calc.accOrigins || {},
+    items: items.map(it => ({secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, itemKind: it.itemKind || "شباك", price: it.price, unitPrice: it.unitPrice, accOrigins: it.accOrigins || {}})),
+    totalPrice: items.reduce((s, it) => s + toF(it.price), 0),
     custName: document.getElementById("custName").value.trim(),
     custPhone: phone,
     notes: document.getElementById("notesInput").value.trim()
   });
   setQueue(q);
+  setCurrentItems([]);
+  renderCurrentItems();
   renderQueue();
-  alert("اتحفظت في قائمة الانتظار ✅");
+  document.getElementById("custName").value = "";
+  document.getElementById("custPhone").value = "";
+  document.getElementById("notesInput").value = "";
+  alert("اتحفظ عرض العميل في قائمة الانتظار ✅");
   syncQueue();
 });
 
@@ -810,19 +913,24 @@ function renderQueue() {
   document.getElementById("queueCount").textContent = q.length ? "(" + q.length + ")" : "";
   if (!q.length) { list.innerHTML = ""; empty.style.display = "block"; return; }
   empty.style.display = "none";
-  list.innerHTML = q.slice().reverse().map(it => `
+  list.innerHTML = q.slice().reverse().map(it => {
+    const its = it.items || [{secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, itemKind: it.itemKind || "شباك"}];
+    const total = it.totalPrice !== undefined ? it.totalPrice : it.price;
+    const breakdown = its.map(x => `<div class="muted">- ${x.itemKind || "شباك"}: ${x.secName} (${fmt(x.W)} × ${fmt(x.H)} سم - عدد ${x.qty} - ${x.glassName})</div>`).join("");
+    return `
     <div class="pending-item">
       <div class="top">
-        <span class="name">${it.secName}</span>
-        <span class="price">${fmt(it.price)} ج</span>
+        <span class="name">${its.length > 1 ? its.length + " بنود" : its[0].secName}</span>
+        <span class="price">${fmt(total)} ج</span>
       </div>
-      <div class="muted">${fmt(it.W)} × ${fmt(it.H)} سم - عدد ${it.qty} - ${it.glassName}</div>
+      ${breakdown}
       ${it.custName || it.custPhone ? '<div class="muted">👤 ' + (it.custName || "") + ' ' + (it.custPhone || "") + '</div>' : ""}
       <div class="muted">${it.time}</div>
       <span class="tag">لسه محتاجة مزامنة</span>
       <button class="btn-sm btn-red" style="float:left" onclick="deleteQueueItem(${it.id})">حذف</button>
     </div>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function deleteQueueItem(id) {
@@ -984,6 +1092,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) auto
 showScreen();
 fillDropdowns();
 renderQueue();
+renderCurrentItems();
 if (isConnected()) { doSync().then((ok) => { if (ok) syncQueue(); }); loadOverview(); }
 
 if ("serviceWorker" in navigator) {

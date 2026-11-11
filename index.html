@@ -550,6 +550,14 @@ function fmt(n) {
   return (Math.round(n * 100) / 100).toLocaleString("ar-EG");
 }
 
+// للمبالغ (جنيه) بس: بنطلعها رقم صحيح من غير قروش، ومقرّبة لأعلى دايمًا (14555.49 → 14556)
+function fmtMoney(n) {
+  if (n === null || n === undefined || isNaN(n)) return "-";
+  const cents = Math.round(n * 100) / 100;   // نمسح أي فروق تقريب عشرية صغيرة الأول
+  const whole = Math.ceil(cents - 1e-9) || 0;   // || 0 بيشيل أي -0 ناتجة عن قيم صفرية/سالبة صغيرة جدًا
+  return whole.toLocaleString("ar-EG");
+}
+
 function isConnected() { return !!getSheetUrl(); }
 
 function showScreen() {
@@ -829,7 +837,7 @@ document.getElementById("adminAddExpenseBtn").addEventListener("click", () => {
   const today = new Date();
   const dateStr = today.getFullYear() + "-" + String(today.getMonth() + 1).padStart(2, "0") + "-" + String(today.getDate()).padStart(2, "0");
   const action = {kind: "expense", date: dateStr, cat, amount, note};
-  pushAdminAction(action, "مصروف (" + cat + "): " + fmt(amount) + " ج");
+  pushAdminAction(action, "مصروف (" + cat + "): " + fmtMoney(amount) + " ج");
   document.getElementById("adminExpenseAmount").value = "";
   document.getElementById("adminExpenseNote").value = "";
   alert("اتحفظ المصروف، هيتسجل على الكمبيوتر أول ما يتزامن ✅");
@@ -1046,7 +1054,7 @@ document.getElementById("calcBtn").addEventListener("click", () => {
     }
     resultBody.innerHTML = html;
     const totalForQty = d.sellingPrice * qty;
-    resultTotal.textContent = "السعر التقديري: " + fmt(totalForQty) + " جنيه" + (qty > 1 ? " (لـ " + qty + ")" : "");
+    resultTotal.textContent = "السعر التقديري: " + fmtMoney(totalForQty) + " جنيه" + (qty > 1 ? " (لـ " + qty + ")" : "");
     resultCard.classList.remove("hidden");
     resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, itemKind, price: totalForQty, unitPrice: d.sellingPrice,
       pricingMode: d.pricingMode, totalKg: d.totalKg, totalM: d.totalM, accOrigins: Object.assign({}, accOriginChoice)});
@@ -1096,7 +1104,7 @@ function renderCurrentItems() {
     <div class="pending-item">
       <div class="top">
         <span class="name">${it.itemKind || "شباك"} - ${it.secName}</span>
-        <span class="price">${fmt(it.price)} ج</span>
+        <span class="price">${fmtMoney(it.price)} ج</span>
       </div>
       <div class="muted">${fmt(it.W)} × ${fmt(it.H)} سم - عدد ${it.qty} - ${it.glassName}</div>
       <div class="muted">${isMeter ? "طول الألومنيوم" : "وزن الألومنيوم"}: ${wline}</div>
@@ -1104,7 +1112,7 @@ function renderCurrentItems() {
     </div>
   `;
   }).join("");
-  let totalLine = items.length ? "إجمالي العرض: " + fmt(total) + " جنيه" : "";
+  let totalLine = items.length ? "إجمالي العرض: " + fmtMoney(total) + " جنيه" : "";
   if (totalKg > 0) totalLine += " - إجمالي الوزن: " + fmt(totalKg) + " كجم";
   if (totalM > 0) totalLine += " - إجمالي الطول: " + fmt(totalM) + " م";
   totalEl.textContent = totalLine;
@@ -1157,7 +1165,7 @@ function renderQueue() {
     <div class="pending-item">
       <div class="top">
         <span class="name">${its.length > 1 ? its.length + " بنود" : its[0].secName}</span>
-        <span class="price">${fmt(total)} ج</span>
+        <span class="price">${fmtMoney(total)} ج</span>
       </div>
       ${breakdown}
       ${it.custName || it.custPhone ? '<div class="muted">👤 ' + (it.custName || "") + ' ' + (it.custPhone || "") + '</div>' : ""}
@@ -1225,7 +1233,7 @@ function renderJobs(jobs) {
         <span class="status-pill ${statusClass(j.status)}">${j.status}</span>
       </div>
       <div class="muted">#${shortJobRef(j.job_id)}${j.phone ? " - " + j.phone : ""}${j.source === "موبايل" ? " - 📱 من الموبايل" : ""}</div>
-      ${j.total !== null && j.total !== undefined ? '<div class="muted">الإجمالي: ' + fmt(j.total) + ' ج' + (j.remaining ? " (متبقي " + fmt(j.remaining) + " ج)" : "") + '</div>' : ""}
+      ${j.total !== null && j.total !== undefined ? '<div class="muted">الإجمالي: ' + fmtMoney(j.total) + ' ج' + (j.remaining ? " (متبقي " + fmtMoney(j.remaining) + " ج)" : "") + '</div>' : ""}
       <div class="muted">${j.time}</div>
     </div>
   `).join("");

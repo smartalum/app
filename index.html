@@ -741,6 +741,7 @@ function fillDropdowns() {
 function checkStockAlerts(snap) {
   const banner = document.getElementById("stockAlertBanner");
   const textEl = document.getElementById("stockAlertText");
+  if (snap.mobile_stock_alert_on === false) { banner.classList.add("hidden"); banner.dataset.sig = ""; return; }
   const catNames = snap.stock_cats || {};
   const out = [];
   Object.keys(snap.stock_items || {}).forEach(cat => {

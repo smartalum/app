@@ -112,6 +112,13 @@
       </div>
     </div>
 
+    <div id="stockAlertBanner" class="hidden" style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin:0 0 10px;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+        <div id="stockAlertText" style="color:#991b1b; font-size:14px; line-height:1.7; white-space:pre-line;"></div>
+        <button id="stockAlertClose" style="background:none; border:none; color:#991b1b; font-size:20px; line-height:1; cursor:pointer; padding:0 2px;">×</button>
+      </div>
+    </div>
+
     <div class="tabbar">
       <button class="tabbtn active" id="tabQuoteBtn">📊 مقايسة</button>
       <button class="tabbtn" id="tabTrackBtn">📋 متابعة<span class="badge hidden" id="trackBadge">0</span></button>
@@ -725,7 +732,43 @@ function fillDropdowns() {
   applyOriginMode();
   syncInfo.textContent = "آخر مزامنة: " + (snap.time || "-") + " (" + (snap.workshop_name || "") + ")";
   fillAdminDropdowns(snap);
+  checkStockAlerts(snap);
 }
+
+// ---------------------------------------------------------------
+// تنبيه جوه التطبيق (مش إشعار بوش): لو فيه صنف في المخزن خلص أو قرب يخلص، بيظهر بانر فوق لحد ما يتقفل
+// ---------------------------------------------------------------
+function checkStockAlerts(snap) {
+  const banner = document.getElementById("stockAlertBanner");
+  const textEl = document.getElementById("stockAlertText");
+  const catNames = snap.stock_cats || {};
+  const out = [];
+  Object.keys(snap.stock_items || {}).forEach(cat => {
+    (snap.stock_items[cat] || []).forEach(it => {
+      const qty = toF(it.qty), min = toF(it.min);
+      let status = null;
+      if (qty <= 0) status = "خلص ⛔";
+      else if (min > 0 && qty <= min) status = "قرب يخلص ⚠️";
+      if (status) out.push({cat: catNames[cat] || cat, name: it.name, qty, unit: it.unit, status});
+    });
+  });
+  if (!out.length) { banner.classList.add("hidden"); banner.dataset.sig = ""; return; }
+  out.sort((a, b) => (a.status.startsWith("خلص") ? 0 : 1) - (b.status.startsWith("خلص") ? 0 : 1));
+  const sig = out.map(o => o.cat + "|" + o.name + "|" + o.status).join(";");
+  if (sig === banner.dataset.dismissedSig) { banner.classList.add("hidden"); return; }
+  const limit = 8;
+  const lines = out.slice(0, limit).map(o => `${o.status}  ${o.name} (${o.cat}) - الرصيد: ${fmt(o.qty)} ${o.unit}`);
+  if (out.length > limit) lines.push("...وكمان " + (out.length - limit) + " صنف تاني");
+  textEl.textContent = "فيه أصناف في المخزن خلصت أو قربت تخلص:\n" + lines.join("\n");
+  banner.dataset.sig = sig;
+  banner.classList.remove("hidden");
+}
+
+document.getElementById("stockAlertClose").addEventListener("click", () => {
+  const banner = document.getElementById("stockAlertBanner");
+  banner.dataset.dismissedSig = banner.dataset.sig || "";
+  banner.classList.add("hidden");
+});
 
 // ---------------------------------------------------------------
 // تبويب "إدارة": تعديل أسعار / حركة مخزن / إضافة مصروف من الموبايل

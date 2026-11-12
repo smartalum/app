@@ -6,6 +6,8 @@
 <title>Smart Alum Core - موبايل</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e3a8a">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; }
   body { font-family: Tahoma, Arial, sans-serif; direction: rtl; margin: 0; background: #f3f4f6; color: #111827; padding-bottom: 30px; }
@@ -68,6 +70,62 @@
   #qrModal .qr-frame { align-self: center; margin-top: 25vh; width: 220px; height: 220px; border: 3px solid #fff; border-radius: 16px; box-shadow: 0 0 0 2000px rgba(0,0,0,.45); }
   #qrModal .qr-msg { color: #fff; text-align: center; font-size: 14px; }
   #qrCloseBtn { width: auto; align-self: center; background: #dc2626; color: #fff; }
+
+  /* تنبيه نفاذ المخزون: مربع أحمر قابل للطي زي شاشة العميل بالظبط */
+  #stockAlertBanner, #stockAlertBanner * , .stock-restore-btn { font-family: 'Cairo', Tahoma, Arial, sans-serif; }
+  .stock-restore-bar { text-align: center; margin-bottom: 10px; }
+  .stock-restore-btn { display: inline-flex; align-items: center; gap: 6px; width: auto; background: #fef2f2; color: #b91c1c;
+    border: 1px solid #fecaca; padding: 8px 16px; border-radius: 12px; font-size: 13px; font-weight: bold; margin: 0; box-shadow: none; }
+  .stock-restore-btn:active { transform: scale(.96); }
+
+  .stock-alert-box { border: 1px solid #fecaca; background: rgba(254,242,242,.85); border-radius: 16px;
+    box-shadow: 0 4px 10px rgba(0,0,0,.06); margin-bottom: 14px; overflow: hidden; }
+  .stock-alert-headerbar { display: flex; align-items: center; justify-content: space-between; padding: 12px;
+    background: rgba(254,226,226,.55); cursor: pointer; }
+  .stock-alert-headclick { display: flex; align-items: center; gap: 10px; flex: 1; cursor: pointer; }
+  .stock-alert-icon { width: 38px; height: 38px; border-radius: 12px; background: #dc2626; color: #fff; display: flex;
+    align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 2px 6px rgba(220,38,38,.25); }
+  .stock-alert-title-row { display: flex; align-items: center; gap: 8px; }
+  .stock-alert-title { font-weight: 800; color: #7f1d1d; font-size: 14px; }
+  .stock-alert-count { background: #dc2626; color: #fff; font-size: 11px; font-weight: 900; border-radius: 999px; padding: 1px 8px; }
+  .stock-alert-sub { font-size: 11px; color: #b91c1c; font-weight: 600; margin-top: 2px; }
+  .stock-alert-ctrls { display: flex; align-items: center; gap: 6px; margin-right: 8px; }
+  .stock-alert-ctrl-btn { width: 30px; height: 30px; border-radius: 8px; background: rgba(255,255,255,.85); color: #b91c1c;
+    border: 1px solid #fecaca; display: flex; align-items: center; justify-content: center; font-size: 12px; padding: 0; margin: 0; }
+  .chevron-icon { transition: transform .3s ease; display: inline-block; }
+  .chevron-icon.rotated { transform: rotate(180deg); }
+
+  .stock-alert-content { padding: 0 14px 14px; max-height: 2000px; opacity: 1; overflow: hidden;
+    transition: max-height .35s ease, opacity .25s ease, padding .25s ease; }
+  .stock-alert-content.collapsed { max-height: 0 !important; opacity: 0; padding-top: 0 !important; padding-bottom: 0 !important; }
+  .stock-alert-section { margin-top: 10px; }
+  .stock-alert-section-title { font-size: 12px; font-weight: 800; display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .stock-danger-text { color: #991b1b; }
+  .stock-warn-text { color: #92400e; }
+  .stock-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .stock-dot-red { background: #ef4444; }
+  .stock-dot-amber { background: #f59e0b; }
+
+  .stock-alert-list { display: flex; flex-direction: column; gap: 6px; }
+  .stock-item-card { background: #fff; border-radius: 10px; padding: 8px 10px; display: flex; align-items: center;
+    justify-content: space-between; box-shadow: 0 1px 2px rgba(0,0,0,.04); border: 1px solid #fee2e2; gap: 6px; }
+  .stock-item-card.stock-item-card-warn { border-color: #fde68a; }
+  .stock-item-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .stock-item-name { font-weight: 700; font-size: 13px; color: #1f2937; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stock-item-cat { font-size: 11px; color: #9ca3af; }
+  .stock-item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+  .stock-item-balance { font-size: 11px; color: #6b7280; font-weight: 600; white-space: nowrap; }
+  .stock-item-tag { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 8px; display: inline-flex;
+    align-items: center; gap: 4px; white-space: nowrap; }
+  .stock-item-tag-danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+  .stock-item-tag-warn { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+  .stock-alert-more { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 6px; }
+
+  /* نفس فكرة المربع الأحمر، لكن مصغّرة جوه تبويب (إدارة → حركة مخزن) لما تختار صنف خلص أو قرب يخلص */
+  #adminStockCurrentQty.stock-qty-danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px;
+    padding: 8px 10px; font-weight: 700; }
+  #adminStockCurrentQty.stock-qty-warn { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 8px;
+    padding: 8px 10px; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -113,13 +171,13 @@
     </div>
 
     <div id="stockAlertRestoreBar" class="stock-restore-bar hidden">
-      <button id="stockAlertRestoreBtn" class="stock-restore-btn" type="button">🔔 إظهار تنبيه المخزون</button>
+      <button id="stockAlertRestoreBtn" class="stock-restore-btn" type="button"><i class="fa-solid fa-bell"></i> إظهار تنبيه المخزون</button>
     </div>
 
     <div id="stockAlertBanner" class="stock-alert-box hidden">
       <div class="stock-alert-headerbar">
         <div class="stock-alert-headclick" id="stockAlertHeadClick">
-          <div class="stock-alert-icon">⚠️</div>
+          <div class="stock-alert-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
           <div>
             <div class="stock-alert-title-row">
               <span class="stock-alert-title">تنبيه النفاذ وإعادة الطلب</span>
@@ -129,19 +187,20 @@
           </div>
         </div>
         <div class="stock-alert-ctrls">
-          <button class="stock-alert-ctrl-btn" id="stockAlertToggleBtn" type="button" title="فتح / إغلاق"><span id="stockChevron" class="chevron-icon">▾</span></button>
-          <button class="stock-alert-ctrl-btn" id="stockAlertCloseBtn" type="button" title="إغلاق">×</button>
+          <button class="stock-alert-ctrl-btn" id="stockAlertToggleBtn" type="button" title="فتح / إغلاق"><i id="stockChevron" class="fa-solid fa-chevron-down chevron-icon"></i></button>
+          <button class="stock-alert-ctrl-btn" id="stockAlertCloseBtn" type="button" title="إغلاق"><i class="fa-solid fa-xmark"></i></button>
         </div>
       </div>
       <div id="stockAlertContent" class="stock-alert-content">
         <div id="stockAlertOutSection" class="stock-alert-section hidden">
-          <div class="stock-alert-section-title stock-danger-text">🔴 أصناف انتهت من المخزون (0 رصيد)</div>
-          <div id="stockAlertOutList"></div>
+          <div class="stock-alert-section-title stock-danger-text"><span class="stock-dot stock-dot-red"></span><span id="stockAlertOutTitle">أصناف انتهت من المخزون (0 رصيد)</span></div>
+          <div id="stockAlertOutList" class="stock-alert-list"></div>
         </div>
         <div id="stockAlertLowSection" class="stock-alert-section hidden">
-          <div class="stock-alert-section-title stock-warn-text">🟠 أصناف قريبة من النفاذ</div>
-          <div id="stockAlertLowList"></div>
+          <div class="stock-alert-section-title stock-warn-text"><span class="stock-dot stock-dot-amber"></span>أصناف قريبة من النفاذ</div>
+          <div id="stockAlertLowList" class="stock-alert-list"></div>
         </div>
+        <div id="stockAlertMore" class="stock-alert-more hidden"></div>
       </div>
     </div>
 
@@ -762,39 +821,116 @@ function fillDropdowns() {
 }
 
 // ---------------------------------------------------------------
-// تنبيه جوه التطبيق (مش إشعار بوش): لو فيه صنف في المخزن خلص أو قرب يخلص، بيظهر بانر فوق لحد ما يتقفل
+// تنبيه جوه التطبيق (مش إشعار بوش): لو فيه صنف في المخزن خلص أو قرب يخلص، بيظهر مربع أحمر قابل للطي فوق لحد ما يتقفل
 // ---------------------------------------------------------------
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function renderStockAlertItem(o) {
+  const danger = o.out;
+  const div = document.createElement("div");
+  div.className = "stock-item-card" + (danger ? "" : " stock-item-card-warn");
+  div.innerHTML =
+    '<div class="stock-item-left">' +
+      '<span class="stock-dot ' + (danger ? "stock-dot-red" : "stock-dot-amber") + '"></span>' +
+      '<div>' +
+        '<div class="stock-item-name">' + escapeHtml(o.name) + '</div>' +
+        '<div class="stock-item-cat">' + escapeHtml(o.cat) + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="stock-item-right">' +
+      '<span class="stock-item-balance">الرصيد: ' + fmt(o.qty) + ' ' + escapeHtml(o.unit || "") + '</span>' +
+      '<span class="stock-item-tag ' + (danger ? "stock-item-tag-danger" : "stock-item-tag-warn") + '">' +
+        '<i class="fa-solid ' + (danger ? "fa-circle-xmark" : "fa-triangle-exclamation") + '"></i> ' +
+        (danger ? "خلص" : "قَرّب يخلص") +
+      '</span>' +
+    '</div>';
+  return div;
+}
+
 function checkStockAlerts(snap) {
   const banner = document.getElementById("stockAlertBanner");
-  const textEl = document.getElementById("stockAlertText");
-  if (snap.mobile_stock_alert_on === false) { banner.classList.add("hidden"); banner.dataset.sig = ""; return; }
+  const restoreBar = document.getElementById("stockAlertRestoreBar");
+  if (snap.mobile_stock_alert_on === false) {
+    banner.classList.add("hidden"); restoreBar.classList.add("hidden"); banner.dataset.sig = ""; return;
+  }
   const catNames = snap.stock_cats || {};
-  const out = [];
+  const outItems = [], lowItems = [];
   Object.keys(snap.stock_items || {}).forEach(cat => {
     (snap.stock_items[cat] || []).forEach(it => {
       const qty = toF(it.qty), min = toF(it.min);
-      let status = null;
-      if (qty <= 0) status = "خلص ⛔";
-      else if (min > 0 && qty <= min) status = "قرب يخلص ⚠️";
-      if (status) out.push({cat: catNames[cat] || cat, name: it.name, qty, unit: it.unit, status});
+      const rec = { cat: catNames[cat] || cat, name: it.name, qty, unit: it.unit };
+      if (qty <= 0) outItems.push(rec);
+      else if (min > 0 && qty <= min) lowItems.push(rec);
     });
   });
-  if (!out.length) { banner.classList.add("hidden"); banner.dataset.sig = ""; return; }
-  out.sort((a, b) => (a.status.startsWith("خلص") ? 0 : 1) - (b.status.startsWith("خلص") ? 0 : 1));
-  const sig = out.map(o => o.cat + "|" + o.name + "|" + o.status).join(";");
-  if (sig === banner.dataset.dismissedSig) { banner.classList.add("hidden"); return; }
+  const total = outItems.length + lowItems.length;
+  if (!total) {
+    banner.classList.add("hidden"); restoreBar.classList.add("hidden"); banner.dataset.sig = ""; return;
+  }
+  const sig = outItems.concat(lowItems).map(o => o.cat + "|" + o.name + "|" + o.qty).join(";");
+  if (sig === banner.dataset.dismissedSig) {
+    banner.classList.add("hidden"); restoreBar.classList.remove("hidden"); return;
+  }
+
+  document.getElementById("stockAlertCount").textContent = total;
+
   const limit = 8;
-  const lines = out.slice(0, limit).map(o => `${o.status}  ${o.name} (${o.cat}) - الرصيد: ${fmt(o.qty)} ${o.unit}`);
-  if (out.length > limit) lines.push("...وكمان " + (out.length - limit) + " صنف تاني");
-  textEl.textContent = "فيه أصناف في المخزن خلصت أو قربت تخلص:\n" + lines.join("\n");
+  const outSection = document.getElementById("stockAlertOutSection");
+  const outList = document.getElementById("stockAlertOutList");
+  outList.innerHTML = "";
+  if (outItems.length) {
+    document.getElementById("stockAlertOutTitle").textContent = "أصناف انتهت من المخزون (0 رصيد)";
+    outItems.slice(0, limit).forEach(o => outList.appendChild(renderStockAlertItem(Object.assign({}, o, { out: true }))));
+    outSection.classList.remove("hidden");
+  } else {
+    outSection.classList.add("hidden");
+  }
+
+  const lowSection = document.getElementById("stockAlertLowSection");
+  const lowList = document.getElementById("stockAlertLowList");
+  lowList.innerHTML = "";
+  if (lowItems.length) {
+    lowItems.slice(0, limit).forEach(o => lowList.appendChild(renderStockAlertItem(Object.assign({}, o, { out: false }))));
+    lowSection.classList.remove("hidden");
+  } else {
+    lowSection.classList.add("hidden");
+  }
+
+  const moreEl = document.getElementById("stockAlertMore");
+  const extra = total - Math.min(outItems.length, limit) - Math.min(lowItems.length, limit);
+  if (extra > 0) { moreEl.textContent = "...وكمان " + extra + " صنف تاني"; moreEl.classList.remove("hidden"); }
+  else { moreEl.classList.add("hidden"); }
+
   banner.dataset.sig = sig;
   banner.classList.remove("hidden");
+  restoreBar.classList.add("hidden");
 }
 
-document.getElementById("stockAlertClose").addEventListener("click", () => {
+function toggleStockAlertBox() {
+  const content = document.getElementById("stockAlertContent");
+  const chevron = document.getElementById("stockChevron");
+  content.classList.toggle("collapsed");
+  chevron.classList.toggle("rotated");
+}
+document.getElementById("stockAlertHeadClick").addEventListener("click", toggleStockAlertBox);
+document.getElementById("stockAlertToggleBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleStockAlertBox(); });
+
+document.getElementById("stockAlertCloseBtn").addEventListener("click", (e) => {
+  e.stopPropagation();
   const banner = document.getElementById("stockAlertBanner");
   banner.dataset.dismissedSig = banner.dataset.sig || "";
   banner.classList.add("hidden");
+  document.getElementById("stockAlertRestoreBar").classList.remove("hidden");
+});
+
+document.getElementById("stockAlertRestoreBtn").addEventListener("click", () => {
+  const banner = document.getElementById("stockAlertBanner");
+  banner.dataset.dismissedSig = "";
+  document.getElementById("stockAlertRestoreBar").classList.add("hidden");
+  const snap = getSnapshot();
+  if (snap) checkStockAlerts(snap);
 });
 
 // ---------------------------------------------------------------
@@ -846,7 +982,7 @@ function fillAdminStockItems() {
   items.forEach(it => {
     const o = document.createElement("option");
     o.value = it.name; o.textContent = it.name + " (" + it.unit + ")";
-    o.dataset.qty = it.qty; o.dataset.unit = it.unit;
+    o.dataset.qty = it.qty; o.dataset.unit = it.unit; o.dataset.min = it.min;
     itemSel.appendChild(o);
   });
   updateAdminStockCurrentQty();
@@ -856,7 +992,13 @@ function updateAdminStockCurrentQty() {
   const itemSel = document.getElementById("adminStockItem");
   const o = itemSel.options[itemSel.selectedIndex];
   const txt = document.getElementById("adminStockCurrentQty");
-  txt.textContent = o ? ("الرصيد الحالي (آخر مزامنة): " + fmt(toF(o.dataset.qty)) + " " + (o.dataset.unit || "")) : "";
+  txt.classList.remove("stock-qty-danger", "stock-qty-warn");
+  if (!o) { txt.textContent = ""; return; }
+  const qty = toF(o.dataset.qty), min = toF(o.dataset.min);
+  let tag = "";
+  if (qty <= 0) { txt.classList.add("stock-qty-danger"); tag = ' <i class="fa-solid fa-circle-xmark"></i> خلص'; }
+  else if (min > 0 && qty <= min) { txt.classList.add("stock-qty-warn"); tag = ' <i class="fa-solid fa-triangle-exclamation"></i> قَرّب يخلص'; }
+  txt.innerHTML = "الرصيد الحالي (آخر مزامنة): " + fmt(qty) + " " + escapeHtml(o.dataset.unit || "") + tag;
 }
 
 document.getElementById("adminStockCat").addEventListener("change", fillAdminStockItems);

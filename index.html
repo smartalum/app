@@ -112,10 +112,36 @@
       </div>
     </div>
 
-    <div id="stockAlertBanner" class="hidden" style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin:0 0 10px;">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
-        <div id="stockAlertText" style="color:#991b1b; font-size:14px; line-height:1.7; white-space:pre-line;"></div>
-        <button id="stockAlertClose" style="background:none; border:none; color:#991b1b; font-size:20px; line-height:1; cursor:pointer; padding:0 2px;">×</button>
+    <div id="stockAlertRestoreBar" class="stock-restore-bar hidden">
+      <button id="stockAlertRestoreBtn" class="stock-restore-btn" type="button">🔔 إظهار تنبيه المخزون</button>
+    </div>
+
+    <div id="stockAlertBanner" class="stock-alert-box hidden">
+      <div class="stock-alert-headerbar">
+        <div class="stock-alert-headclick" id="stockAlertHeadClick">
+          <div class="stock-alert-icon">⚠️</div>
+          <div>
+            <div class="stock-alert-title-row">
+              <span class="stock-alert-title">تنبيه النفاذ وإعادة الطلب</span>
+              <span class="stock-alert-count" id="stockAlertCount">0</span>
+            </div>
+            <div class="stock-alert-sub">فيه أصناف في المخزون خلصت أو قربت تخلص</div>
+          </div>
+        </div>
+        <div class="stock-alert-ctrls">
+          <button class="stock-alert-ctrl-btn" id="stockAlertToggleBtn" type="button" title="فتح / إغلاق"><span id="stockChevron" class="chevron-icon">▾</span></button>
+          <button class="stock-alert-ctrl-btn" id="stockAlertCloseBtn" type="button" title="إغلاق">×</button>
+        </div>
+      </div>
+      <div id="stockAlertContent" class="stock-alert-content">
+        <div id="stockAlertOutSection" class="stock-alert-section hidden">
+          <div class="stock-alert-section-title stock-danger-text">🔴 أصناف انتهت من المخزون (0 رصيد)</div>
+          <div id="stockAlertOutList"></div>
+        </div>
+        <div id="stockAlertLowSection" class="stock-alert-section hidden">
+          <div class="stock-alert-section-title stock-warn-text">🟠 أصناف قريبة من النفاذ</div>
+          <div id="stockAlertLowList"></div>
+        </div>
       </div>
     </div>
 

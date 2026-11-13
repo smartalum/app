@@ -252,6 +252,8 @@
       <select id="originModeSelect"></select>
       <div id="originMixBox" style="display:none;"></div>
 
+      <div id="optionalAccBox" style="display:none;"></div>
+
       <button class="btn-main" id="calcBtn">📊 احسب تقدير</button>
     </div>
 
@@ -524,8 +526,18 @@ function accessoryOriginGroups(sec) {
   return out;
 }
 
-function effectiveAccessoryRows(sec, choice) {
+function optionalAccessoryNames(sec) {
+  // أسماء الإكسسوارات الاختيارية بتاعة القطاع ده (زي برور خارجي/جورجيا) من غير تكرار
+  const names = [];
+  (sec.accessories || []).forEach(it => {
+    if (it.optional && names.indexOf(it.name) === -1) names.push(it.name);
+  });
+  return names;
+}
+
+function effectiveAccessoryRows(sec, choice, optionalSelected) {
   // صف واحد بس لكل اسم صنف، زي effective_accessory_rows في البرنامج بالظبط
+  const optSet = new Set(optionalSelected || []);
   const groups = {};
   (sec.accessories || []).forEach(it => {
     (groups[it.name] = groups[it.name] || []).push(it);
@@ -533,6 +545,7 @@ function effectiveAccessoryRows(sec, choice) {
   const result = [];
   Object.keys(groups).forEach(name => {
     const rows = groups[name];
+    if (rows[0].optional && !optSet.has(name)) return;   // صنف اختياري ومحددش في الشغلانة دي - يتجاهل
     if (rows.length === 1) { result.push(rows[0]); return; }
     const chosen = choice && choice[name];
     const match = rows.find(r => (r.origin || "بدون تحديد") === chosen);
@@ -541,7 +554,7 @@ function effectiveAccessoryRows(sec, choice) {
   return result;
 }
 
-function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOriginChoice) {
+function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOriginChoice, optionalSelected) {
   const {SW, SH, FW, FH, DW, DH} = getDims(sec, W, H);
   const meshWf = sec.mesh_w_formula, meshHf = sec.mesh_h_formula;
   const hasMesh = !!(meshWf && meshWf.trim()) && !!(meshHf && meshHf.trim());
@@ -592,7 +605,7 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
   const ctx = {W, H, SW, SH, FW, FH, DW, DH, GW, GH, GA: glassArea, NS: numPanes, KL, KN: knN};
   let totalAcc = 0;
   const accRows = [];
-  for (const item of effectiveAccessoryRows(sec, accOriginChoice)) {
+  for (const item of effectiveAccessoryRows(sec, accOriginChoice, optionalSelected)) {
     const qty = toF(safeEval(item.qty_formula || "1", ctx));
     const price = toF(item.price);
     const total = qty * price;
@@ -639,6 +652,7 @@ const colorSelect = document.getElementById("colorSelect");
 const itemKindSelect = document.getElementById("itemKindSelect");
 const originModeSelect = document.getElementById("originModeSelect");
 const originMixBox = document.getElementById("originMixBox");
+const optionalAccBox = document.getElementById("optionalAccBox");
 const syncInfo = document.getElementById("syncInfo");
 let accOriginChoice = {};
 
@@ -829,6 +843,7 @@ function fillDropdowns() {
   });
   fillOriginModeSelect(snap);
   applyOriginMode();
+  buildOptionalAccBox();
   syncInfo.textContent = "آخر مزامنة: " + (snap.time || "-") + " (" + (snap.workshop_name || "") + ")";
   fillAdminDropdowns(snap);
   checkStockAlerts(snap);
@@ -1180,8 +1195,30 @@ function applyOriginMode() {
   });
 }
 
+let optionalAccSelected = {};   // اسم الصنف الاختياري -> true/false (مربعات اختيار زي برور خارجي/جورجيا)
+
+function buildOptionalAccBox() {
+  const snap = getSnapshot();
+  const sec = snap && (snap.sections || {})[secSelect.value];
+  optionalAccSelected = {};
+  if (!sec) { optionalAccBox.style.display = "none"; optionalAccBox.innerHTML = ""; return; }
+  const names = optionalAccessoryNames(sec);
+  if (!names.length) { optionalAccBox.style.display = "none"; optionalAccBox.innerHTML = ""; return; }
+  optionalAccBox.innerHTML = '<div class="muted" style="margin:8px 0 4px;">إكسسوارات اختيارية (حسب طلب العميل):</div>' +
+    names.map(name =>
+      '<label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; font-weight:normal;">' +
+        '<input type="checkbox" data-opt-acc-name="' + name + '"> ' + name +
+      '</label>'
+    ).join('');
+  optionalAccBox.querySelectorAll('input[data-opt-acc-name]').forEach(cb => {
+    optionalAccSelected[cb.dataset.optAccName] = false;
+    cb.addEventListener('change', () => { optionalAccSelected[cb.dataset.optAccName] = cb.checked; });
+  });
+  optionalAccBox.style.display = "block";
+}
+
 originModeSelect.addEventListener("change", applyOriginMode);
-secSelect.addEventListener("change", () => { accOriginChoice = {}; applyOriginMode(); });
+secSelect.addEventListener("change", () => { accOriginChoice = {}; applyOriginMode(); buildOptionalAccBox(); });
 
 itemKindSelect.addEventListener("change", () => {
   if (itemKindSelect.value === "باب") {
@@ -1217,9 +1254,9 @@ async function syncQueue() {
   const remaining = [];
   const orderOf = (it) => {
     // عرض فيه كذا بند (الوضع الجديد) أو بند واحد قديم اتحفظ قبل التحديث ده - الاتنين بيتبعتوا بنفس الشكل
-    const its = it.items || [{secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, itemKind: it.itemKind, accOrigins: it.accOrigins, colorName: it.colorName}];
+    const its = it.items || [{secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, itemKind: it.itemKind, accOrigins: it.accOrigins, colorName: it.colorName, optionalAccessories: it.optionalAccessories}];
     return {
-      items: its.map(x => ({sec_name: x.secName, W: x.W, H: x.H, qty: x.qty, glass_name: x.glassName, item_kind: x.itemKind || "شباك", acc_origins: x.accOrigins || {}, color_name: x.colorName || ""})),
+      items: its.map(x => ({sec_name: x.secName, W: x.W, H: x.H, qty: x.qty, glass_name: x.glassName, item_kind: x.itemKind || "شباك", acc_origins: x.accOrigins || {}, color_name: x.colorName || "", optional_accessories: x.optionalAccessories || []})),
       c_name: it.custName, c_phone: it.custPhone
     };
   };
@@ -1262,8 +1299,9 @@ document.getElementById("calcBtn").addEventListener("click", () => {
   const colorRec = colorName === NO_COLOR ? null : (snap.section_colors || []).find(c => c.name === colorName);
   const effPriceKg = (colorRec && toF(colorRec.price_kg) > 0) ? toF(colorRec.price_kg) : toF(snap.price_kg);
   if (!sec || !W || !H) { alert("اختار القطاع واكتب العرض والارتفاع."); return; }
+  const optionalAccChosen = Object.keys(optionalAccSelected).filter(n => optionalAccSelected[n]);
   try {
-    const d = computeEstimate(sec, W, H, glassPrice, effPriceKg, toF(snap.profit_pct), snap.pricing, accOriginChoice);
+    const d = computeEstimate(sec, W, H, glassPrice, effPriceKg, toF(snap.profit_pct), snap.pricing, accOriginChoice, optionalAccChosen);
     let html = "";
     html += '<div class="result-line"><span>نوع الوحدة</span><b>' + itemKind + '</b></div>';
     html += '<div class="result-line"><span>عود الحلق (عرض × ارتفاع)</span><b>' + fmt(d.FW) + ' × ' + fmt(d.FH) + ' سم</b></div>';
@@ -1286,7 +1324,7 @@ document.getElementById("calcBtn").addEventListener("click", () => {
     resultTotal.textContent = "السعر التقديري: " + fmtMoney(totalForQty) + " جنيه" + (qty > 1 ? " (لـ " + qty + ")" : "");
     resultCard.classList.remove("hidden");
     resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, colorName: colorName === NO_COLOR ? "" : colorName, itemKind, price: totalForQty, unitPrice: d.sellingPrice,
-      pricingMode: d.pricingMode, totalKg: d.totalKg, totalM: d.totalM, accOrigins: Object.assign({}, accOriginChoice)});
+      pricingMode: d.pricingMode, totalKg: d.totalKg, totalM: d.totalM, accOrigins: Object.assign({}, accOriginChoice), optionalAccessories: optionalAccChosen});
     resultCard.scrollIntoView({behavior: "smooth"});
   } catch (e) {
     resultBody.innerHTML = '<div class="err">' + e.message + '</div>';
@@ -1335,7 +1373,7 @@ function renderCurrentItems() {
         <span class="name">${it.itemKind || "شباك"} - ${it.secName}</span>
         <span class="price">${fmtMoney(it.price)} ج</span>
       </div>
-      <div class="muted">${fmt(it.W)} × ${fmt(it.H)} سم - عدد ${it.qty} - ${it.glassName}${it.colorName ? " - لون: " + it.colorName : ""}</div>
+      <div class="muted">${fmt(it.W)} × ${fmt(it.H)} سم - عدد ${it.qty} - ${it.glassName}${it.colorName ? " - لون: " + it.colorName : ""}${(it.optionalAccessories && it.optionalAccessories.length) ? " - " + it.optionalAccessories.join("، ") : ""}</div>
       <div class="muted">${isMeter ? "طول الألومنيوم" : "وزن الألومنيوم"}: ${wline}</div>
       <button class="btn-sm btn-red" style="float:left" onclick="deleteCurrentItem(${it.rowId})">حذف</button>
     </div>
@@ -1362,7 +1400,7 @@ document.getElementById("saveQueueBtn").addEventListener("click", () => {
   q.push({
     id: Date.now(),
     time: new Date().toLocaleString("ar-EG"),
-    items: items.map(it => ({secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, colorName: it.colorName || "", itemKind: it.itemKind || "شباك", price: it.price, unitPrice: it.unitPrice, accOrigins: it.accOrigins || {}})),
+    items: items.map(it => ({secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, colorName: it.colorName || "", itemKind: it.itemKind || "شباك", price: it.price, unitPrice: it.unitPrice, accOrigins: it.accOrigins || {}, optionalAccessories: it.optionalAccessories || []})),
     totalPrice: items.reduce((s, it) => s + toF(it.price), 0),
     custName: document.getElementById("custName").value.trim(),
     custPhone: phone,

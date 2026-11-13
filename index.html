@@ -245,6 +245,9 @@
       <label>نوع الزجاج</label>
       <select id="glassSelect"></select>
 
+      <label>لون القطاع</label>
+      <select id="colorSelect"></select>
+
       <label>نوع الإكسسوار</label>
       <select id="originModeSelect"></select>
       <div id="originMixBox" style="display:none;"></div>
@@ -402,6 +405,7 @@
 const LS_SNAPSHOT = "sac_snapshot", LS_QUEUE = "sac_queue", LS_CURRENT = "sac_current_items", LS_ADMIN_QUEUE = "sac_admin_queue";
 const LS_SHEET_URL = "sac_sheet_url", LS_SHEET_TOKEN = "sac_sheet_token", LS_WORKSHOP_NAME = "sac_workshop_name";
 const NO_GLASS = "بدون زجاج";
+const NO_COLOR = "بدون تحديد (السعر العادي)";
 
 function getSnapshot() { try { return JSON.parse(localStorage.getItem(LS_SNAPSHOT) || "null"); } catch (e) { return null; } }
 function getSheetUrl() { return localStorage.getItem(LS_SHEET_URL) || ""; }
@@ -631,6 +635,7 @@ const mainScreen = document.getElementById("mainScreen");
 const statusDot = document.getElementById("statusDot");
 const secSelect = document.getElementById("secSelect");
 const glassSelect = document.getElementById("glassSelect");
+const colorSelect = document.getElementById("colorSelect");
 const itemKindSelect = document.getElementById("itemKindSelect");
 const originModeSelect = document.getElementById("originModeSelect");
 const originMixBox = document.getElementById("originMixBox");
@@ -813,6 +818,15 @@ function fillDropdowns() {
   noGlassOpt.value = NO_GLASS; noGlassOpt.textContent = NO_GLASS;
   glassSelect.appendChild(noGlassOpt);
   if (itemKindSelect.value === "باب") glassSelect.value = NO_GLASS;
+  colorSelect.innerHTML = "";
+  const noColorOpt = document.createElement("option");
+  noColorOpt.value = NO_COLOR; noColorOpt.textContent = NO_COLOR;
+  colorSelect.appendChild(noColorOpt);
+  (snap.section_colors || []).forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.name; o.textContent = c.name + " (" + c.price_kg + " ج/كجم)";
+    colorSelect.appendChild(o);
+  });
   fillOriginModeSelect(snap);
   applyOriginMode();
   syncInfo.textContent = "آخر مزامنة: " + (snap.time || "-") + " (" + (snap.workshop_name || "") + ")";
@@ -1203,9 +1217,9 @@ async function syncQueue() {
   const remaining = [];
   const orderOf = (it) => {
     // عرض فيه كذا بند (الوضع الجديد) أو بند واحد قديم اتحفظ قبل التحديث ده - الاتنين بيتبعتوا بنفس الشكل
-    const its = it.items || [{secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, itemKind: it.itemKind, accOrigins: it.accOrigins}];
+    const its = it.items || [{secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, itemKind: it.itemKind, accOrigins: it.accOrigins, colorName: it.colorName}];
     return {
-      items: its.map(x => ({sec_name: x.secName, W: x.W, H: x.H, qty: x.qty, glass_name: x.glassName, item_kind: x.itemKind || "شباك", acc_origins: x.accOrigins || {}})),
+      items: its.map(x => ({sec_name: x.secName, W: x.W, H: x.H, qty: x.qty, glass_name: x.glassName, item_kind: x.itemKind || "شباك", acc_origins: x.accOrigins || {}, color_name: x.colorName || ""})),
       c_name: it.custName, c_phone: it.custPhone
     };
   };
@@ -1244,9 +1258,12 @@ document.getElementById("calcBtn").addEventListener("click", () => {
   const glassName = glassSelect.value;
   const itemKind = itemKindSelect.value || "شباك";
   const glassPrice = glassName === NO_GLASS ? 0 : toF((snap.glass_types || []).find(g => g.name === glassName)?.price);
+  const colorName = colorSelect.value;
+  const colorRec = colorName === NO_COLOR ? null : (snap.section_colors || []).find(c => c.name === colorName);
+  const effPriceKg = (colorRec && toF(colorRec.price_kg) > 0) ? toF(colorRec.price_kg) : toF(snap.price_kg);
   if (!sec || !W || !H) { alert("اختار القطاع واكتب العرض والارتفاع."); return; }
   try {
-    const d = computeEstimate(sec, W, H, glassPrice, toF(snap.price_kg), toF(snap.profit_pct), snap.pricing, accOriginChoice);
+    const d = computeEstimate(sec, W, H, glassPrice, effPriceKg, toF(snap.profit_pct), snap.pricing, accOriginChoice);
     let html = "";
     html += '<div class="result-line"><span>نوع الوحدة</span><b>' + itemKind + '</b></div>';
     html += '<div class="result-line"><span>عود الحلق (عرض × ارتفاع)</span><b>' + fmt(d.FW) + ' × ' + fmt(d.FH) + ' سم</b></div>';
@@ -1268,7 +1285,7 @@ document.getElementById("calcBtn").addEventListener("click", () => {
     const totalForQty = d.sellingPrice * qty;
     resultTotal.textContent = "السعر التقديري: " + fmtMoney(totalForQty) + " جنيه" + (qty > 1 ? " (لـ " + qty + ")" : "");
     resultCard.classList.remove("hidden");
-    resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, itemKind, price: totalForQty, unitPrice: d.sellingPrice,
+    resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, colorName: colorName === NO_COLOR ? "" : colorName, itemKind, price: totalForQty, unitPrice: d.sellingPrice,
       pricingMode: d.pricingMode, totalKg: d.totalKg, totalM: d.totalM, accOrigins: Object.assign({}, accOriginChoice)});
     resultCard.scrollIntoView({behavior: "smooth"});
   } catch (e) {
@@ -1318,7 +1335,7 @@ function renderCurrentItems() {
         <span class="name">${it.itemKind || "شباك"} - ${it.secName}</span>
         <span class="price">${fmtMoney(it.price)} ج</span>
       </div>
-      <div class="muted">${fmt(it.W)} × ${fmt(it.H)} سم - عدد ${it.qty} - ${it.glassName}</div>
+      <div class="muted">${fmt(it.W)} × ${fmt(it.H)} سم - عدد ${it.qty} - ${it.glassName}${it.colorName ? " - لون: " + it.colorName : ""}</div>
       <div class="muted">${isMeter ? "طول الألومنيوم" : "وزن الألومنيوم"}: ${wline}</div>
       <button class="btn-sm btn-red" style="float:left" onclick="deleteCurrentItem(${it.rowId})">حذف</button>
     </div>
@@ -1345,7 +1362,7 @@ document.getElementById("saveQueueBtn").addEventListener("click", () => {
   q.push({
     id: Date.now(),
     time: new Date().toLocaleString("ar-EG"),
-    items: items.map(it => ({secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, itemKind: it.itemKind || "شباك", price: it.price, unitPrice: it.unitPrice, accOrigins: it.accOrigins || {}})),
+    items: items.map(it => ({secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, colorName: it.colorName || "", itemKind: it.itemKind || "شباك", price: it.price, unitPrice: it.unitPrice, accOrigins: it.accOrigins || {}})),
     totalPrice: items.reduce((s, it) => s + toF(it.price), 0),
     custName: document.getElementById("custName").value.trim(),
     custPhone: phone,
@@ -1370,9 +1387,9 @@ function renderQueue() {
   if (!q.length) { list.innerHTML = ""; empty.style.display = "block"; return; }
   empty.style.display = "none";
   list.innerHTML = q.slice().reverse().map(it => {
-    const its = it.items || [{secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, itemKind: it.itemKind || "شباك"}];
+    const its = it.items || [{secName: it.secName, W: it.W, H: it.H, qty: it.qty, glassName: it.glassName, colorName: it.colorName, itemKind: it.itemKind || "شباك"}];
     const total = it.totalPrice !== undefined ? it.totalPrice : it.price;
-    const breakdown = its.map(x => `<div class="muted">- ${x.itemKind || "شباك"}: ${x.secName} (${fmt(x.W)} × ${fmt(x.H)} سم - عدد ${x.qty} - ${x.glassName})</div>`).join("");
+    const breakdown = its.map(x => `<div class="muted">- ${x.itemKind || "شباك"}: ${x.secName} (${fmt(x.W)} × ${fmt(x.H)} سم - عدد ${x.qty} - ${x.glassName}${x.colorName ? " - لون: " + x.colorName : ""})</div>`).join("");
     return `
     <div class="pending-item">
       <div class="top">

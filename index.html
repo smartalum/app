@@ -1162,16 +1162,16 @@ window.deleteAdminQueueItem = deleteAdminQueueItem;
 
 async function syncAdminQueue() {
   const q = getAdminQueue();
-  if (!isConnected() || !q.length) return {sent: 0, failed: 0};
-  let sent = 0, failed = 0;
+  if (!isConnected() || !q.length) return {sent: 0, failed: 0, lastError: ""};
+  let sent = 0, failed = 0, lastError = "";
   const remaining = [];
   for (const it of q) {
-    const resp = await sheetDirectRequest("submit_action", "POST", {action: it.action});
-    if (resp && resp.ok) { sent++; } else { failed++; remaining.push(it); }
+    const resp = await sheetDirectRequest("submit_action", "POST", {data: it.action});
+    if (resp && resp.ok) { sent++; } else { failed++; remaining.push(it); lastError = (resp && resp.error) || "لا يوجد رد من السيرفر"; }
   }
   setAdminQueue(remaining);
   renderAdminQueue();
-  return {sent, failed};
+  return {sent, failed, lastError};
 }
 
 // ---------------------------------------------------------------
@@ -1322,8 +1322,8 @@ async function doSync(showMsg) {
 
 async function syncQueue() {
   const q = getQueue();
-  if (!isConnected() || !q.length) return {sent: 0, failed: 0};
-  let sent = 0, failed = 0;
+  if (!isConnected() || !q.length) return {sent: 0, failed: 0, lastError: ""};
+  let sent = 0, failed = 0, lastError = "";
   const remaining = [];
   const orderOf = (it) => {
     // عرض فيه كذا بند (الوضع الجديد) أو بند واحد قديم اتحفظ قبل التحديث ده - الاتنين بيتبعتوا بنفس الشكل
@@ -1335,11 +1335,11 @@ async function syncQueue() {
   };
   for (const it of q) {
     const resp = await sheetDirectRequest("submit_quote", "POST", {order: orderOf(it)});
-    if (resp && resp.ok) { sent++; } else { failed++; remaining.push(it); }
+    if (resp && resp.ok) { sent++; } else { failed++; remaining.push(it); lastError = (resp && resp.error) || "لا يوجد رد من السيرفر"; }
   }
   setQueue(remaining);
   renderQueue();
-  return {sent, failed};
+  return {sent, failed, lastError};
 }
 
 document.getElementById("syncBtn").addEventListener("click", async () => {
@@ -1349,7 +1349,8 @@ document.getElementById("syncBtn").addEventListener("click", async () => {
     const ra = await syncAdminQueue();
     const sentTotal = r.sent + ra.sent, failedTotal = r.failed + ra.failed;
     if (sentTotal || failedTotal) {
-      syncInfo.textContent = "اتبعت " + sentTotal + " للشيت" + (failedTotal ? " (وفشل " + failedTotal + ")" : "");
+      const errTxt = ra.lastError || r.lastError;
+      syncInfo.textContent = "اتبعت " + sentTotal + " للشيت" + (failedTotal ? (" (وفشل " + failedTotal + (errTxt ? ": " + errTxt : "") + ")") : "");
     }
   }
 });

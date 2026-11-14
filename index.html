@@ -121,6 +121,16 @@
   .stock-item-tag-warn { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
   .stock-alert-more { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 6px; }
 
+  /* إكسسوارات اختيارية في شاشة المقايسة - نفس فكرة كروت تنبيه المخزون */
+  .opt-acc-title { font-size: 13px; font-weight: 800; color: #0f766e; margin: 10px 0 6px; }
+  .opt-acc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 10px; padding: 10px 12px; margin-bottom: 6px;
+    cursor: pointer; transition: background .15s ease; }
+  .opt-acc-row:active { background: #ccfbf1; }
+  .opt-acc-name { font-size: 13px; font-weight: 700; color: #134e4a; }
+  .opt-acc-row input[type="checkbox"] { width: 20px; height: 20px; min-width: 20px; accent-color: #0d9488;
+    flex-shrink: 0; margin: 0; }
+
   /* نفس فكرة المربع الأحمر، لكن مصغّرة جوه تبويب (إدارة → حركة مخزن) لما تختار صنف خلص أو قرب يخلص */
   #adminStockCurrentQty.stock-qty-danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px;
     padding: 8px 10px; font-weight: 700; }
@@ -1204,10 +1214,11 @@ function buildOptionalAccBox() {
   if (!sec) { optionalAccBox.style.display = "none"; optionalAccBox.innerHTML = ""; return; }
   const names = optionalAccessoryNames(sec);
   if (!names.length) { optionalAccBox.style.display = "none"; optionalAccBox.innerHTML = ""; return; }
-  optionalAccBox.innerHTML = '<div class="muted" style="margin:8px 0 4px;">إكسسوارات اختيارية (حسب طلب العميل):</div>' +
+  optionalAccBox.innerHTML = '<div class="opt-acc-title">إكسسوارات اختيارية (حسب طلب العميل)</div>' +
     names.map(name =>
-      '<label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; font-weight:normal;">' +
-        '<input type="checkbox" data-opt-acc-name="' + name + '"> ' + name +
+      '<label class="opt-acc-row">' +
+        '<span class="opt-acc-name">' + escapeHtml(name) + '</span>' +
+        '<input type="checkbox" data-opt-acc-name="' + escapeHtml(name) + '">' +
       '</label>'
     ).join('');
   optionalAccBox.querySelectorAll('input[data-opt-acc-name]').forEach(cb => {

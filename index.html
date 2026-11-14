@@ -393,6 +393,8 @@
         <h2>📏 أسعار المتر (للقطاعات اللي تسعيرها بالمتر)</h2>
         <label>القطاع</label>
         <select id="adminMeterSecSelect"></select>
+        <label>اللون (اختياري - سيبه "السعر العادي" لو مفيش لون محدد)</label>
+        <select id="adminMeterColorSelect"></select>
         <label>سعر متر الحلق</label>
         <input id="adminMeterFrame" type="number" inputmode="decimal">
         <label>سعر متر الضلفة</label>
@@ -564,9 +566,18 @@ function getKnife(sec) {
   let n = parseInt(sec.knife_count); n = (!isNaN(n) && n >= 0) ? n : 0;
   return [n, toF(sec.knife_kg_m)];
 }
-function getPricing(sec) {
+function getPricing(sec, colorName) {
   const mode = sec.pricing_mode === "meter" ? "meter" : "weight";
-  return {mode, frame_price_m: toF(sec.frame_price_m), sash_price_m: toF(sec.sash_price_m), div_price_m: toF(sec.div_price_m), knife_price_m: toF(sec.knife_price_m)};
+  const p = {mode, frame_price_m: toF(sec.frame_price_m), sash_price_m: toF(sec.sash_price_m), div_price_m: toF(sec.div_price_m), knife_price_m: toF(sec.knife_price_m)};
+  if (mode === "meter" && colorName && colorName !== NO_COLOR) {
+    // أسعار متر خاصة بلون معيّن لنفس القطاع ده (لو مسجلة)، بتغلب أسعار المتر العادية بتاعة القطاع
+    const ov = (sec.color_meter_prices || {})[colorName] || {};
+    ["frame_price_m", "sash_price_m", "div_price_m", "knife_price_m"].forEach(k => {
+      const v = toF(ov[k]);
+      if (v > 0) p[k] = v;
+    });
+  }
+  return p;
 }
 
 function accessoryOriginGroups(sec) {
@@ -611,7 +622,7 @@ function effectiveAccessoryRows(sec, choice, optionalSelected) {
   return result;
 }
 
-function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOriginChoice, optionalSelected) {
+function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOriginChoice, optionalSelected, colorName) {
   const {SW, SH, FW, FH, DW, DH} = getDims(sec, W, H);
   const meshWf = sec.mesh_w_formula, meshHf = sec.mesh_h_formula;
   const hasMesh = !!(meshWf && meshWf.trim()) && !!(meshHf && meshHf.trim());
@@ -636,7 +647,7 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
   const KL = getKnifeLen(sec, W, H, SW, SH, FW, FH, DW, DH);
   const knM = knN * KL / 100, knKg = knM * knRate;
   const exactWeight = Math.min(fwRate, fhRate, swRate, shRate) > 0 && (dwN === 0 || dwRate > 0) && (dhN === 0 || dhRate > 0) && (knN === 0 || knRate > 0);
-  const pricing = getPricing(sec);
+  const pricing = getPricing(sec, colorName);
   let totalKg;
   if (exactWeight) {
     totalKg = frameKg + sashKg + divKg + knKg;
@@ -1063,6 +1074,20 @@ function fillAdminDropdowns(snap) {
   });
   meterCard.style.display = meterSections.length ? "block" : "none";
   if (prevMeterSec && meterSections.includes(prevMeterSec)) meterSecSel.value = prevMeterSec;
+
+  const meterColorSel = document.getElementById("adminMeterColorSelect");
+  const prevMeterColor = meterColorSel.value;
+  meterColorSel.innerHTML = "";
+  const defOpt = document.createElement("option");
+  defOpt.value = ""; defOpt.textContent = "السعر العادي (بدون تحديد لون)";
+  meterColorSel.appendChild(defOpt);
+  (snap.section_colors || []).forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.name; o.textContent = c.name;
+    meterColorSel.appendChild(o);
+  });
+  if (prevMeterColor && Array.from(meterColorSel.options).some(o => o.value === prevMeterColor)) meterColorSel.value = prevMeterColor;
+
   fillAdminMeterPrices();
 
   const catSel = document.getElementById("adminStockCat");
@@ -1148,28 +1173,40 @@ document.getElementById("adminSavePricesBtn").addEventListener("click", () => {
 function fillAdminMeterPrices() {
   const snap = getSnapshot();
   const secName = document.getElementById("adminMeterSecSelect").value;
+  const colorName = document.getElementById("adminMeterColorSelect").value;
   const sec = (snap && snap.sections && snap.sections[secName]) || {};
-  document.getElementById("adminMeterFrame").value = sec.frame_price_m || "";
-  document.getElementById("adminMeterSash").value = sec.sash_price_m || "";
-  document.getElementById("adminMeterDiv").value = sec.div_price_m || "";
-  document.getElementById("adminMeterKnife").value = sec.knife_price_m || "";
+  if (colorName) {
+    // لون محدد: اعرض سعره الخاص لو مسجل، وإلا سيبها فاضية عشان يكتب سعر جديد لهذا اللون
+    const ov = ((sec.color_meter_prices || {})[colorName]) || {};
+    document.getElementById("adminMeterFrame").value = ov.frame_price_m || "";
+    document.getElementById("adminMeterSash").value = ov.sash_price_m || "";
+    document.getElementById("adminMeterDiv").value = ov.div_price_m || "";
+    document.getElementById("adminMeterKnife").value = ov.knife_price_m || "";
+  } else {
+    document.getElementById("adminMeterFrame").value = sec.frame_price_m || "";
+    document.getElementById("adminMeterSash").value = sec.sash_price_m || "";
+    document.getElementById("adminMeterDiv").value = sec.div_price_m || "";
+    document.getElementById("adminMeterKnife").value = sec.knife_price_m || "";
+  }
 }
 document.getElementById("adminMeterSecSelect").addEventListener("change", fillAdminMeterPrices);
+document.getElementById("adminMeterColorSelect").addEventListener("change", fillAdminMeterPrices);
 
 document.getElementById("adminSaveMeterBtn").addEventListener("click", () => {
   const secName = document.getElementById("adminMeterSecSelect").value;
+  const colorName = document.getElementById("adminMeterColorSelect").value;
   if (!secName) { alert("اختار القطاع الأول."); return; }
-  const action = {
-    kind: "price_update",
-    meter_price_updates: {
-      sec_name: secName,
-      frame_price_m: toF(document.getElementById("adminMeterFrame").value),
-      sash_price_m: toF(document.getElementById("adminMeterSash").value),
-      div_price_m: toF(document.getElementById("adminMeterDiv").value),
-      knife_price_m: toF(document.getElementById("adminMeterKnife").value),
-    }
+  const mu = {
+    sec_name: secName,
+    frame_price_m: toF(document.getElementById("adminMeterFrame").value),
+    sash_price_m: toF(document.getElementById("adminMeterSash").value),
+    div_price_m: toF(document.getElementById("adminMeterDiv").value),
+    knife_price_m: toF(document.getElementById("adminMeterKnife").value),
   };
-  pushAdminAction(action, "تعديل أسعار متر (" + secName + ")");
+  if (colorName) mu.color_name = colorName;
+  const action = {kind: "price_update", meter_price_updates: mu};
+  const label = colorName ? "تعديل أسعار متر (" + secName + " - لون " + colorName + ")" : "تعديل أسعار متر (" + secName + ")";
+  pushAdminAction(action, label);
   alert("اتحفظ تعديل أسعار المتر، هيتطبق على الكمبيوتر أول ما يتزامن ✅");
 });
 
@@ -1453,7 +1490,7 @@ document.getElementById("calcBtn").addEventListener("click", () => {
   if (!sec || !W || !H) { alert("اختار القطاع واكتب العرض والارتفاع."); return; }
   const optionalAccChosen = Object.keys(optionalAccSelected).filter(n => optionalAccSelected[n]);
   try {
-    const d = computeEstimate(sec, W, H, glassPrice, effPriceKg, toF(snap.profit_pct), snap.pricing, accOriginChoice, optionalAccChosen);
+    const d = computeEstimate(sec, W, H, glassPrice, effPriceKg, toF(snap.profit_pct), snap.pricing, accOriginChoice, optionalAccChosen, (colorName !== NO_COLOR ? colorName : ""));
     let html = "";
     html += '<div class="result-line"><span>نوع الوحدة</span><b>' + itemKind + '</b></div>';
     html += '<div class="result-line"><span>عود الحلق (عرض × ارتفاع)</span><b>' + fmt(d.FW) + ' × ' + fmt(d.FH) + ' سم</b></div>';

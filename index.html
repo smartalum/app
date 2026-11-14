@@ -382,8 +382,27 @@
         <label>سعر نوع زجاج (اختياري)</label>
         <select id="adminGlassSelect"></select>
         <input id="adminGlassPrice" type="number" inputmode="decimal" placeholder="سعر المتر المربع الجديد (سيبه فاضي لو مش هتغيره)">
+        <label>سعر كيلو خاص بلون معيّن (اختياري)</label>
+        <select id="adminColorSelect"></select>
+        <input id="adminColorPrice" type="number" inputmode="decimal" placeholder="سعر الكيلو الجديد لهذا اللون (سيبه فاضي لو مش هتغيره)">
         <button class="btn-main" id="adminSavePricesBtn">💾 حفظ الأسعار</button>
-        <p class="muted">التعديل هيتطبق على الكمبيوتر أول ما يتزامن.</p>
+        <p class="muted">التعديل هيتطبق على الكمبيوتر أول ما يتزامن. سعر الكيلو فوق ده للسعر العادي (بالوزن) بس.</p>
+      </div>
+
+      <div class="card" id="meterPriceCard" style="display:none;">
+        <h2>📏 أسعار المتر (للقطاعات اللي تسعيرها بالمتر)</h2>
+        <label>القطاع</label>
+        <select id="adminMeterSecSelect"></select>
+        <label>سعر متر الحلق</label>
+        <input id="adminMeterFrame" type="number" inputmode="decimal">
+        <label>سعر متر الضلفة</label>
+        <input id="adminMeterSash" type="number" inputmode="decimal">
+        <label>سعر متر القاطع</label>
+        <input id="adminMeterDiv" type="number" inputmode="decimal">
+        <label>سعر متر السكينة</label>
+        <input id="adminMeterKnife" type="number" inputmode="decimal">
+        <button class="btn-main" id="adminSaveMeterBtn">💾 حفظ أسعار المتر</button>
+        <p class="muted">كل قطاع من دول ليه أسعار متر مستقلة بتاعته بس، منفصلة عن سعر الكيلو فوق.</p>
       </div>
 
       <div class="card">
@@ -1022,6 +1041,30 @@ function fillAdminDropdowns(snap) {
     glassSel.appendChild(o);
   });
 
+  const colorSel = document.getElementById("adminColorSelect");
+  const prevColor = colorSel.value;
+  colorSel.innerHTML = "";
+  (snap.section_colors || []).forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.name; o.textContent = c.name + " (حاليًا " + c.price_kg + " ج/كجم)";
+    colorSel.appendChild(o);
+  });
+  if (prevColor && Array.from(colorSel.options).some(o => o.value === prevColor)) colorSel.value = prevColor;
+
+  const meterCard = document.getElementById("meterPriceCard");
+  const meterSecSel = document.getElementById("adminMeterSecSelect");
+  const prevMeterSec = meterSecSel.value;
+  meterSecSel.innerHTML = "";
+  const meterSections = Object.keys(snap.sections || {}).filter(n => (snap.sections[n] || {}).pricing_mode === "meter");
+  meterSections.forEach(n => {
+    const o = document.createElement("option");
+    o.value = n; o.textContent = n;
+    meterSecSel.appendChild(o);
+  });
+  meterCard.style.display = meterSections.length ? "block" : "none";
+  if (prevMeterSec && meterSections.includes(prevMeterSec)) meterSecSel.value = prevMeterSec;
+  fillAdminMeterPrices();
+
   const catSel = document.getElementById("adminStockCat");
   const stockCats = snap.stock_cats || {};
   const prevCat = catSel.value;
@@ -1081,6 +1124,8 @@ document.getElementById("adminSavePricesBtn").addEventListener("click", () => {
   const profitPct = toF(document.getElementById("adminProfitPct").value);
   const glassName = document.getElementById("adminGlassSelect").value;
   const glassPriceRaw = document.getElementById("adminGlassPrice").value.trim();
+  const colorName = document.getElementById("adminColorSelect").value;
+  const colorPriceRaw = document.getElementById("adminColorPrice").value.trim();
   const action = {kind: "price_update"};
   let changed = false;
   if (priceKg > 0) { action.price_kg = priceKg; changed = true; }
@@ -1089,10 +1134,43 @@ document.getElementById("adminSavePricesBtn").addEventListener("click", () => {
     action.glass_updates = [{name: glassName, price: toF(glassPriceRaw)}];
     changed = true;
   }
-  if (!changed) { alert("مكتبتش أي تعديل. اكتب سعر الكيلو أو نسبة الربح أو سعر نوع زجاج."); return; }
+  if (colorName && colorPriceRaw !== "") {
+    action.color_price_updates = [{name: colorName, price_kg: toF(colorPriceRaw)}];
+    changed = true;
+  }
+  if (!changed) { alert("مكتبتش أي تعديل. اكتب سعر الكيلو أو نسبة الربح أو سعر نوع زجاج أو سعر لون."); return; }
   pushAdminAction(action, "تعديل أسعار");
   document.getElementById("adminGlassPrice").value = "";
+  document.getElementById("adminColorPrice").value = "";
   alert("اتحفظ التعديل، هيتطبق على الكمبيوتر أول ما يتزامن ✅");
+});
+
+function fillAdminMeterPrices() {
+  const snap = getSnapshot();
+  const secName = document.getElementById("adminMeterSecSelect").value;
+  const sec = (snap && snap.sections && snap.sections[secName]) || {};
+  document.getElementById("adminMeterFrame").value = sec.frame_price_m || "";
+  document.getElementById("adminMeterSash").value = sec.sash_price_m || "";
+  document.getElementById("adminMeterDiv").value = sec.div_price_m || "";
+  document.getElementById("adminMeterKnife").value = sec.knife_price_m || "";
+}
+document.getElementById("adminMeterSecSelect").addEventListener("change", fillAdminMeterPrices);
+
+document.getElementById("adminSaveMeterBtn").addEventListener("click", () => {
+  const secName = document.getElementById("adminMeterSecSelect").value;
+  if (!secName) { alert("اختار القطاع الأول."); return; }
+  const action = {
+    kind: "price_update",
+    meter_price_updates: {
+      sec_name: secName,
+      frame_price_m: toF(document.getElementById("adminMeterFrame").value),
+      sash_price_m: toF(document.getElementById("adminMeterSash").value),
+      div_price_m: toF(document.getElementById("adminMeterDiv").value),
+      knife_price_m: toF(document.getElementById("adminMeterKnife").value),
+    }
+  };
+  pushAdminAction(action, "تعديل أسعار متر (" + secName + ")");
+  alert("اتحفظ تعديل أسعار المتر، هيتطبق على الكمبيوتر أول ما يتزامن ✅");
 });
 
 function doAdminStockMove(sign) {

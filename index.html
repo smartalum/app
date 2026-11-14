@@ -121,7 +121,7 @@
   .stock-item-tag-warn { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
   .stock-alert-more { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 6px; }
 
-  /* إكسسوارات اختيارية في شاشة المقايسة - نفس فكرة كروت تنبيه المخزون */
+  /* إكسسوارات اختيارية في شاشة المقايسة - زرار يفتح قائمة منسدلة (موديال) بدل مربعات ظاهرة كلها */
   .opt-acc-title { font-size: 13px; font-weight: 800; color: #0f766e; margin: 10px 0 6px; }
   .opt-acc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
     background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 10px; padding: 10px 12px; margin-bottom: 6px;
@@ -130,6 +130,22 @@
   .opt-acc-name { font-size: 13px; font-weight: 700; color: #134e4a; }
   .opt-acc-row input[type="checkbox"] { width: 20px; height: 20px; min-width: 20px; accent-color: #0d9488;
     flex-shrink: 0; margin: 0; }
+
+  .opt-acc-open-btn { width: 100%; margin-top: 8px; padding: 11px 14px; border: none; border-radius: 12px;
+    background: #0f766e; color: #fff; font-weight: 800; font-size: 13px; cursor: pointer; }
+  .opt-acc-open-btn:active { background: #0d5f58; }
+  .opt-acc-summary { font-size: 12px; font-weight: 700; color: #9ca3af; margin: 8px 0 2px; text-align: right;
+    line-height: 1.6; }
+  .opt-acc-summary.has-selection { color: #1d4ed8; }
+
+  #optAccModalOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 60;
+    align-items: flex-end; justify-content: center; }
+  #optAccModalOverlay.open { display: flex; }
+  #optAccModalSheet { background: #fff; width: 100%; max-width: 480px; border-radius: 18px 18px 0 0;
+    padding: 16px 16px 20px; max-height: 75vh; overflow-y: auto; }
+  .opt-acc-modal-title { font-size: 15px; font-weight: 800; color: #0f766e; margin-bottom: 10px; text-align: right; }
+  .opt-acc-done-btn { width: 100%; margin-top: 10px; padding: 12px; border: none; border-radius: 12px;
+    background: #0f766e; color: #fff; font-weight: 800; font-size: 14px; cursor: pointer; }
 
   /* نفس فكرة المربع الأحمر، لكن مصغّرة جوه تبويب (إدارة → حركة مخزن) لما تختار صنف خلص أو قرب يخلص */
   #adminStockCurrentQty.stock-qty-danger { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; border-radius: 8px;
@@ -262,9 +278,21 @@
       <select id="originModeSelect"></select>
       <div id="originMixBox" style="display:none;"></div>
 
-      <div id="optionalAccBox" style="display:none;"></div>
+      <div id="optionalAccBox" style="display:none;">
+        <div class="opt-acc-title">إكسسوارات اختيارية (حسب طلب العميل)</div>
+        <div id="optAccSummary" class="opt-acc-summary">لم يتم اختيار أي إكسسوار اختياري بعد</div>
+        <button type="button" class="opt-acc-open-btn" id="optAccOpenBtn">اختيار الإكسسوارات الاختيارية...</button>
+      </div>
 
       <button class="btn-main" id="calcBtn">📊 احسب تقدير</button>
+    </div>
+
+    <div id="optAccModalOverlay">
+      <div id="optAccModalSheet">
+        <div class="opt-acc-modal-title">اختيار الإكسسوارات الاختيارية</div>
+        <div id="optAccModalList"></div>
+        <button type="button" class="opt-acc-done-btn" id="optAccDoneBtn">تم</button>
+      </div>
     </div>
 
     <div class="card hidden" id="resultCard">
@@ -663,6 +691,11 @@ const itemKindSelect = document.getElementById("itemKindSelect");
 const originModeSelect = document.getElementById("originModeSelect");
 const originMixBox = document.getElementById("originMixBox");
 const optionalAccBox = document.getElementById("optionalAccBox");
+const optAccSummary = document.getElementById("optAccSummary");
+const optAccOpenBtn = document.getElementById("optAccOpenBtn");
+const optAccModalOverlay = document.getElementById("optAccModalOverlay");
+const optAccModalList = document.getElementById("optAccModalList");
+const optAccDoneBtn = document.getElementById("optAccDoneBtn");
 const syncInfo = document.getElementById("syncInfo");
 let accOriginChoice = {};
 
@@ -1207,26 +1240,55 @@ function applyOriginMode() {
 
 let optionalAccSelected = {};   // اسم الصنف الاختياري -> true/false (مربعات اختيار زي برور خارجي/جورجيا)
 
+function updateOptAccSummary() {
+  const selected = Object.keys(optionalAccSelected).filter(n => optionalAccSelected[n]);
+  if (!Object.keys(optionalAccSelected).length) {
+    optAccSummary.textContent = "لا يوجد إكسسوارات اختيارية مسجلة لهذا القطاع";
+    optAccSummary.classList.remove("has-selection");
+  } else if (selected.length) {
+    optAccSummary.textContent = "محدد الآن: " + selected.join("، ");
+    optAccSummary.classList.add("has-selection");
+  } else {
+    optAccSummary.textContent = "لم يتم اختيار أي إكسسوار اختياري بعد";
+    optAccSummary.classList.remove("has-selection");
+  }
+}
+
+function closeOptAccModal() {
+  optAccModalOverlay.classList.remove("open");
+}
+
 function buildOptionalAccBox() {
   const snap = getSnapshot();
   const sec = snap && (snap.sections || {})[secSelect.value];
   optionalAccSelected = {};
-  if (!sec) { optionalAccBox.style.display = "none"; optionalAccBox.innerHTML = ""; return; }
+  closeOptAccModal();
+  if (!sec) { optionalAccBox.style.display = "none"; optAccModalList.innerHTML = ""; return; }
   const names = optionalAccessoryNames(sec);
-  if (!names.length) { optionalAccBox.style.display = "none"; optionalAccBox.innerHTML = ""; return; }
-  optionalAccBox.innerHTML = '<div class="opt-acc-title">إكسسوارات اختيارية (حسب طلب العميل)</div>' +
-    names.map(name =>
-      '<label class="opt-acc-row">' +
-        '<span class="opt-acc-name">' + escapeHtml(name) + '</span>' +
-        '<input type="checkbox" data-opt-acc-name="' + escapeHtml(name) + '">' +
-      '</label>'
-    ).join('');
-  optionalAccBox.querySelectorAll('input[data-opt-acc-name]').forEach(cb => {
+  if (!names.length) { optionalAccBox.style.display = "none"; optAccModalList.innerHTML = ""; return; }
+  optAccModalList.innerHTML = names.map(name =>
+    '<label class="opt-acc-row">' +
+      '<span class="opt-acc-name">' + escapeHtml(name) + '</span>' +
+      '<input type="checkbox" data-opt-acc-name="' + escapeHtml(name) + '">' +
+    '</label>'
+  ).join('');
+  optAccModalList.querySelectorAll('input[data-opt-acc-name]').forEach(cb => {
     optionalAccSelected[cb.dataset.optAccName] = false;
-    cb.addEventListener('change', () => { optionalAccSelected[cb.dataset.optAccName] = cb.checked; });
+    cb.addEventListener('change', () => {
+      optionalAccSelected[cb.dataset.optAccName] = cb.checked;
+      updateOptAccSummary();
+    });
   });
   optionalAccBox.style.display = "block";
+  updateOptAccSummary();
 }
+
+optAccOpenBtn.addEventListener("click", () => {
+  if (!Object.keys(optionalAccSelected).length) return;
+  optAccModalOverlay.classList.add("open");
+});
+optAccDoneBtn.addEventListener("click", closeOptAccModal);
+optAccModalOverlay.addEventListener("click", (e) => { if (e.target === optAccModalOverlay) closeOptAccModal(); });
 
 originModeSelect.addEventListener("change", applyOriginMode);
 secSelect.addEventListener("change", () => { accOriginChoice = {}; applyOriginMode(); buildOptionalAccBox(); });

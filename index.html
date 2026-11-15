@@ -526,6 +526,24 @@ function safeEval(expr, vars) {
   }
 }
 
+// وحدات القياس اللي المعادلة بتاعتها بتتحسب بالسنتيمتر، فلازم تتحول للمتر²/المتر تلقائي (زي البرنامج بالظبط)
+const UNIT_AUTO_DIVISOR = {"متر مربع": 10000, "متر": 100};
+
+function formulaAlreadyDivided(formula, divisor) {
+  // بيتأكد إن المعادلة مكتوب فيها / <divisor> بالظبط يدوي قبل كده، عشان مانقسمش الناتج مرتين
+  const pattern = new RegExp("/\\s*" + divisor + "(?!\\d)");
+  return pattern.test(String(formula || ""));
+}
+
+function calcQty(item, ctx) {
+  let qty = toF(safeEval(item.qty_formula || "1", ctx));
+  const divisor = UNIT_AUTO_DIVISOR[item.unit || ""];
+  if (divisor && !formulaAlreadyDivided(item.qty_formula, divisor)) {
+    qty = qty / divisor;
+  }
+  return qty;
+}
+
 function getFrameDims(sec, W, H) {
   return [safeEval(sec.fw_formula || "W", {W, H}), safeEval(sec.fh_formula || "H", {W, H})];
 }
@@ -674,7 +692,7 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
   let totalAcc = 0;
   const accRows = [];
   for (const item of effectiveAccessoryRows(sec, accOriginChoice, optionalSelected)) {
-    const qty = toF(safeEval(item.qty_formula || "1", ctx));
+    const qty = calcQty(item, ctx);
     const price = toF(item.price);
     const total = qty * price;
     totalAcc += total;

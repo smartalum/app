@@ -703,7 +703,13 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
       const miCtx = {W, H, SW, SH, FW, FH, DW, DH, GW, GH, GA: glassArea, NS: numPanes, KL, KN: knN};
       for (const mi of sec.meter_items) {
         try {
-          aluCost += calcQty(mi, miCtx) * toF(mi.price);
+          let miPrice = toF(mi.price);
+          // سعر خاص باللون المختار لهذا البند بالذات (لو مسجّل)، بيغلب السعر العادي بتاع البند
+          if (colorName && mi.color_prices && mi.color_prices[colorName] !== undefined) {
+            const cp = toF(mi.color_prices[colorName]);
+            if (cp > 0) miPrice = cp;
+          }
+          aluCost += calcQty(mi, miCtx) * miPrice;
         } catch (e) { /* تجاهل بند فيه معادلة غلط عشان ميوقفش باقي الحساب */ }
       }
     }

@@ -676,6 +676,15 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
     totalKg = area * toF(sec.weight_factor);
     if (totalKg <= 0) throw new Error("القطاع ده مفيهوش أوزان متر مسجلة في آخر مزامنة، مش هينفع يتحسب أوفلاين. زامن البيانات تاني وانت متصل.");
   }
+  // بنود وزن إضافية (قطاعات معقدة فيها أجزاء زيادة عن الحلق/الضلفة العادية - زي ضلفة جوه ضلفة، جزء ثابت، عارضة فاصلة...)
+  if (sec.weight_items && sec.weight_items.length) {
+    const wiCtx = {W, H, SW, SH, FW, FH, DW, DH, GW, GH, GA: glassArea, NS: numPanes, KL, KN: knN};
+    for (const wi of sec.weight_items) {
+      try {
+        totalKg += calcQty(wi, wiCtx) * toF(wi.kg_m);
+      } catch (e) { /* تجاهل بند فيه معادلة غلط عشان ميوقفش باقي الحساب */ }
+    }
+  }
   const frM = fwM + fhM, saM = swM + shM, dvM = dwM + dhM;
   let aluCost;
   if (pricing.mode === "meter") {

@@ -6,6 +6,14 @@
 <title>Smart Alum Core - موبايل</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e3a8a">
+<!-- أيقونة التطبيق لما يتضاف على الشاشة الرئيسية (أندرويد وآيفون) -->
+<link rel="icon" type="image/png" sizes="32x32" href="icon_32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon_180.png">
+<!-- يفتح بملء الشاشة من غير شريط المتصفح على آيفون لما يتضاف للشاشة الرئيسية -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ورشتي">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -171,6 +179,7 @@
     <h2>اربط التطبيق بورشتك</h2>
     <div id="connectedBox" class="connected-box hidden">
       <div>متصل بورشة: <b id="connectedName">-</b> ✅</div>
+      <button class="btn-main" id="backToMainBtn">⬅️ رجوع للشاشة الرئيسية</button>
     </div>
     <p class="muted">افتح البرنامج على الكمبيوتر → تبويب "إعدادات الورشة" → بوكس "مزامنة الموبايل عبر Google Sheet"، ودوس "اعرض QR للعميل" وامسحه بالكاميرا.</p>
     <button class="btn-main" id="scanQrBtn">📷 مسح كود QR</button>
@@ -841,6 +850,11 @@ document.getElementById("saveManualBtn").addEventListener("click", async () => {
 document.getElementById("disconnectBtn").addEventListener("click", () => {
   if (!confirm("متأكد عايز تقطع الاتصال بالورشة دي؟")) return;
   clearConnection();
+  showScreen();
+});
+
+// دوس بالغلط على الترس وهو متصل أصلاً بالورشة؟ الزرار ده بيرجعه للشاشة الرئيسية من غير ما يقطع الاتصال
+document.getElementById("backToMainBtn").addEventListener("click", () => {
   showScreen();
 });
 

@@ -689,6 +689,15 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
   let aluCost;
   if (pricing.mode === "meter") {
     aluCost = frM * pricing.frame_price_m + saM * pricing.sash_price_m + dvM * pricing.div_price_m + knM * pricing.knife_price_m;
+    // بنود متر إضافية (قطاعات معقدة متسعّرة بالمتر فيها أجزاء زيادة عن الحلق/الضلفة العادية)
+    if (sec.meter_items && sec.meter_items.length) {
+      const miCtx = {W, H, SW, SH, FW, FH, DW, DH, GW, GH, GA: glassArea, NS: numPanes, KL, KN: knN};
+      for (const mi of sec.meter_items) {
+        try {
+          aluCost += calcQty(mi, miCtx) * toF(mi.price);
+        } catch (e) { /* تجاهل بند فيه معادلة غلط عشان ميوقفش باقي الحساب */ }
+      }
+    }
   } else {
     aluCost = totalKg * priceKg;
   }

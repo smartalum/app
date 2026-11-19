@@ -160,6 +160,19 @@
     padding: 8px 10px; font-weight: 700; }
   #adminStockCurrentQty.stock-qty-warn { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; border-radius: 8px;
     padding: 8px 10px; font-weight: 700; }
+
+  /* تحديث أسعار الإكسسورات الشامل جوه تبويب (إدارة) */
+  .acc-bulk-row { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px;
+    margin-bottom: 8px; cursor: pointer; }
+  .acc-bulk-row:active { background: #f3f4f6; }
+  .acc-bulk-row-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .acc-bulk-name { font-weight: 700; font-size: 13px; color: #1f2937; }
+  .acc-bulk-price { font-size: 12px; color: #2563eb; font-weight: 700; white-space: nowrap; }
+  #accBulkModalOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 60;
+    align-items: flex-end; justify-content: center; }
+  #accBulkModalOverlay.open { display: flex; }
+  #accBulkModalSheet { background: #fff; width: 100%; max-width: 480px; border-radius: 18px 18px 0 0;
+    padding: 16px 16px 20px; max-height: 85vh; overflow-y: auto; }
 </style>
 </head>
 <body>
@@ -398,6 +411,13 @@
         <p class="muted">التعديل هيتطبق على الكمبيوتر أول ما يتزامن. سعر الكيلو فوق ده للسعر العادي (بالوزن) بس.</p>
       </div>
 
+      <div class="card">
+        <h2>💰 تحديث أسعار الإكسسورات (في كل القطاعات)</h2>
+        <p class="muted">دوس على أي صنف عشان تحدد القطاعات وتغيّر سعره في كل القطاعات دفعة واحدة، زي نظام الكمبيوتر بالظبط.</p>
+        <input id="accBulkSearch" type="text" placeholder="بحث باسم الصنف..." autocomplete="off">
+        <div id="accBulkList" style="margin-top:8px;"></div>
+      </div>
+
       <div class="card" id="meterPriceCard" style="display:none;">
         <h2>📏 أسعار المتر (للقطاعات اللي تسعيرها بالمتر)</h2>
         <label>القطاع</label>
@@ -466,6 +486,26 @@
   </div>
 </div>
 <canvas id="qrCanvas" class="hidden"></canvas>
+
+<!-- موديال تحديث سعر صنف إكسسوار في كل القطاعات (أو جزء منها) -->
+<div id="accBulkModalOverlay">
+  <div id="accBulkModalSheet">
+    <div class="opt-acc-modal-title" id="accBulkModalTitle">-</div>
+    <label>القطاعات (شيل علامة الصح من اللي مش عايز تحدّث سعره فيه)</label>
+    <div class="row2">
+      <button type="button" class="btn-sm btn-gray" id="accBulkSelectAllBtn">اختار الكل</button>
+      <button type="button" class="btn-sm btn-gray" id="accBulkClearAllBtn">امسح الكل</button>
+    </div>
+    <div id="accBulkSectionList" style="margin-top:8px; max-height:220px; overflow-y:auto;"></div>
+    <label>سعر جديد ثابت (جنيه)</label>
+    <input id="accBulkFixedPrice" type="number" inputmode="decimal" placeholder="مثلاً 25">
+    <button type="button" class="btn-green" id="accBulkApplyFixedBtn">✏️ طبّق سعر ثابت على القطاعات المحددة</button>
+    <label>زود/قلل بنسبة % (رقم موجب للزيادة، سالب للنقصان)</label>
+    <input id="accBulkPct" type="number" inputmode="decimal" placeholder="مثلاً 10 أو -5">
+    <button type="button" class="btn-main" id="accBulkApplyPctBtn">📈 طبّق النسبة على القطاعات المحددة</button>
+    <button type="button" class="btn-gray" id="accBulkModalCloseBtn">إغلاق</button>
+  </div>
+</div>
 
 <script src="jsqr.min.js"></script>
 <script>
@@ -976,6 +1016,7 @@ function fillDropdowns() {
   syncInfo.textContent = "آخر مزامنة: " + (snap.time || "-") + " (" + (snap.workshop_name || "") + ")";
   fillAdminDropdowns(snap);
   checkStockAlerts(snap);
+  renderAccBulkList();
 }
 
 // ---------------------------------------------------------------
@@ -1344,6 +1385,132 @@ async function syncAdminQueue() {
   renderAdminQueue();
   return {sent, failed, lastError};
 }
+
+// ---------------------------------------------------------------
+// تبويب (إدارة) → تحديث سعر صنف إكسسوار في كل القطاعات اللي مسجل فيها (أو جزء منها)
+// زي نظام "تحديث أسعار الإكسسورات الشامل" بالظبط اللي في برنامج الكمبيوتر، بس من الموبايل
+// ---------------------------------------------------------------
+let accBulkGroups = [];
+let accBulkSelectedKey = null;
+const accBulkSectionChoice = {};   // key (اسم||منشأ) -> array قطاعات مختارة آخر مرة اتفتح فيها الموديال (عشان تفضل متذكرة)
+
+function buildAccPriceGroups() {
+  const snap = getSnapshot();
+  const groups = {};
+  if (!snap || !snap.sections) return [];
+  Object.keys(snap.sections).forEach(secName => {
+    const sec = snap.sections[secName] || {};
+    (sec.accessories || []).forEach(it => {
+      const name = String(it.name || "").trim();
+      if (!name) return;
+      const origin = String(it.origin || "").trim();
+      const key = name + "||" + origin;
+      if (!groups[key]) groups[key] = {key, name, origin, unit: it.unit || "", sections: [], prices: []};
+      const g = groups[key];
+      if (g.sections.indexOf(secName) === -1) g.sections.push(secName);
+      g.prices.push(toF(it.price));
+    });
+  });
+  return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name, "ar"));
+}
+
+function renderAccBulkList() {
+  const searchEl = document.getElementById("accBulkSearch");
+  const list = document.getElementById("accBulkList");
+  if (!searchEl || !list) return;
+  accBulkGroups = buildAccPriceGroups();
+  const q = searchEl.value.trim();
+  const filtered = q ? accBulkGroups.filter(g => g.name.indexOf(q) !== -1) : accBulkGroups;
+  if (!filtered.length) {
+    list.innerHTML = '<p class="muted">' + (accBulkGroups.length ? "مفيش صنف بالاسم ده." : "مفيش أصناف إكسسوارات مسجلة لسه - اعمل مزامنة الأول.") + '</p>';
+    return;
+  }
+  list.innerHTML = filtered.map(g => {
+    const uniqPrices = Array.from(new Set(g.prices)).sort((a, b) => a - b);
+    const priceTxt = uniqPrices.length === 1 ? fmtMoney(uniqPrices[0]) + " ج"
+      : "أسعار مختلفة: " + fmtMoney(uniqPrices[0]) + " - " + fmtMoney(uniqPrices[uniqPrices.length - 1]) + " ج";
+    return `
+    <div class="acc-bulk-row" data-key="${g.key.replace(/"/g, '&quot;')}">
+      <div class="acc-bulk-row-top">
+        <span class="acc-bulk-name">${g.name}${g.origin ? " (" + g.origin + ")" : ""}</span>
+        <span class="acc-bulk-price">${priceTxt}</span>
+      </div>
+      <div class="muted">${g.sections.length} قطاع${g.unit ? " - " + g.unit : ""}</div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".acc-bulk-row").forEach(el => {
+    el.addEventListener("click", () => openAccBulkModal(el.getAttribute("data-key")));
+  });
+}
+document.getElementById("accBulkSearch").addEventListener("keyup", renderAccBulkList);
+
+function accBulkGroupByKey(key) {
+  return accBulkGroups.find(g => g.key === key);
+}
+
+function openAccBulkModal(key) {
+  const g = accBulkGroupByKey(key);
+  if (!g) return;
+  accBulkSelectedKey = key;
+  document.getElementById("accBulkModalTitle").textContent = g.name + (g.origin ? " (" + g.origin + ")" : "");
+  const chosen = accBulkSectionChoice[key] || g.sections.slice();
+  document.getElementById("accBulkSectionList").innerHTML = g.sections.map(s => `
+    <label class="opt-acc-row" style="cursor:pointer;">
+      <span class="opt-acc-name">${s}</span>
+      <input type="checkbox" data-sec="${s.replace(/"/g, '&quot;')}" ${chosen.indexOf(s) !== -1 ? "checked" : ""}>
+    </label>`).join("");
+  document.getElementById("accBulkFixedPrice").value = "";
+  document.getElementById("accBulkPct").value = "";
+  document.getElementById("accBulkModalOverlay").classList.add("open");
+}
+
+function closeAccBulkModal() {
+  document.getElementById("accBulkModalOverlay").classList.remove("open");
+  accBulkSelectedKey = null;
+}
+
+function accBulkChosenSections() {
+  const chosen = [];
+  document.querySelectorAll("#accBulkSectionList input[type=checkbox]").forEach(b => { if (b.checked) chosen.push(b.getAttribute("data-sec")); });
+  return chosen;
+}
+
+document.getElementById("accBulkSelectAllBtn").addEventListener("click", () => {
+  document.querySelectorAll("#accBulkSectionList input[type=checkbox]").forEach(b => { b.checked = true; });
+});
+document.getElementById("accBulkClearAllBtn").addEventListener("click", () => {
+  document.querySelectorAll("#accBulkSectionList input[type=checkbox]").forEach(b => { b.checked = false; });
+});
+
+function pushAccBulkAction(mode, value, label) {
+  const g = accBulkGroupByKey(accBulkSelectedKey);
+  if (!g) return;
+  const chosen = accBulkChosenSections();
+  if (!chosen.length) { alert("اختار قطاع واحد على الأقل."); return; }
+  accBulkSectionChoice[g.key] = chosen;
+  const allSections = chosen.length === g.sections.length;
+  const action = {kind: "acc_price_update", name: g.name, origin: g.origin, mode, value, sections: allSections ? null : chosen};
+  pushAdminAction(action, "تحديث سعر إكسسوار (" + g.name + (g.origin ? " - " + g.origin : "") + "): " + label + " (" + chosen.length + " قطاع)");
+  closeAccBulkModal();
+  alert("اتحفظ التحديث، هيتطبق على الكمبيوتر أول ما يتزامن ✅");
+}
+
+document.getElementById("accBulkApplyFixedBtn").addEventListener("click", () => {
+  const raw = document.getElementById("accBulkFixedPrice").value;
+  const price = toF(raw);
+  if (raw.trim() === "" || price < 0) { alert("اكتب سعر صحيح."); return; }
+  pushAccBulkAction("fixed", price, "سعر ثابت " + fmtMoney(price) + " ج");
+});
+document.getElementById("accBulkApplyPctBtn").addEventListener("click", () => {
+  const raw = document.getElementById("accBulkPct").value;
+  const pct = toF(raw);
+  if (raw.trim() === "" || isNaN(parseFloat(raw))) { alert("اكتب نسبة صحيحة."); return; }
+  pushAccBulkAction("pct", pct, "نسبة " + pct + "%");
+});
+document.getElementById("accBulkModalCloseBtn").addEventListener("click", closeAccBulkModal);
+document.getElementById("accBulkModalOverlay").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("accBulkModalOverlay")) closeAccBulkModal();
+});
 
 // ---------------------------------------------------------------
 // نوع الإكسسوار (تركي/مصري/توليفة) - نفس منطق الكمبيوتر بالظبط، بس هنا في المتصفح

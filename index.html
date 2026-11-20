@@ -42,6 +42,12 @@
   .link-btn { background: none; color: #2563eb; text-decoration: underline; font-weight: normal; font-size: 13px; width: auto; padding: 4px; margin: 6px auto 0; display: block; }
   .result-line { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; border-bottom: 1px dashed #e5e7eb; }
   .result-line b { color: #111827; }
+  #resultSummaryBox { display: flex; justify-content: space-between; align-items: center; cursor: pointer; background: #f3f4f6; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; user-select: none; }
+  #resultSummaryText { font-size: 14px; font-weight: bold; color: #111827; }
+  #resultSummaryArrow { font-size: 12px; color: #2563eb; white-space: nowrap; }
+  #resultBody.open { display: block; }
+  .collapsible-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+  .collapsible-header span { font-size: 12px; color: #2563eb; white-space: nowrap; margin-right: 8px; }
   .total-box { background: #eef2ff; border-radius: 8px; padding: 10px; margin-top: 8px; text-align: center; font-size: 19px; font-weight: bold; color: #1e3a8a; }
   .pending-item { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
   .pending-item .top { display: flex; justify-content: space-between; align-items: center; }
@@ -319,7 +325,11 @@
 
     <div class="card hidden" id="resultCard">
       <h2>التقدير</h2>
-      <div id="resultBody"></div>
+      <div id="resultSummaryBox">
+        <span id="resultSummaryText"></span>
+        <span id="resultSummaryArrow">▼ كل التفاصيل</span>
+      </div>
+      <div id="resultBody" class="hidden"></div>
       <div class="total-box" id="resultTotal"></div>
       <p class="muted">⚠️ تقدير تقريبي بأسعار آخر مزامنة، مش سعر نهائي. السعر الرسمي من البرنامج على الكمبيوتر.</p>
       <button class="btn-green" id="addItemBtn">➕ ضيف الوحدة دي لعرض العميل</button>
@@ -412,10 +422,15 @@
       </div>
 
       <div class="card">
-        <h2>💰 تحديث أسعار الإكسسورات (في كل القطاعات)</h2>
-        <p class="muted">دوس على أي صنف عشان تحدد القطاعات وتغيّر سعره في كل القطاعات دفعة واحدة، زي نظام الكمبيوتر بالظبط.</p>
-        <input id="accBulkSearch" type="text" placeholder="بحث باسم الصنف..." autocomplete="off">
-        <div id="accBulkList" style="margin-top:8px;"></div>
+        <div id="accBulkHeader" class="collapsible-header">
+          <h2 style="margin:0;">💰 تحديث أسعار الإكسسورات (في كل القطاعات)</h2>
+          <span id="accBulkArrow">▼ فتح</span>
+        </div>
+        <div id="accBulkBody" class="hidden">
+          <p class="muted">دوس على أي صنف عشان تحدد القطاعات وتغيّر سعره في كل القطاعات دفعة واحدة، زي نظام الكمبيوتر بالظبط.</p>
+          <input id="accBulkSearch" type="text" placeholder="بحث باسم الصنف..." autocomplete="off">
+          <div id="accBulkList" style="margin-top:8px;"></div>
+        </div>
       </div>
 
       <div class="card" id="meterPriceCard" style="display:none;">
@@ -997,6 +1012,10 @@ document.getElementById("qrCloseBtn").addEventListener("click", stopQrScan);
 // المزامنة مع الشيت: الأسعار والقطاعات + قائمة الانتظار
 // ---------------------------------------------------------------
 function fillDropdowns() {
+  // مزامنة في الخلفية (تلقائية كل كذا دقيقة أو لما الصفحة ترجع تظهر) ممكن تحصل والمستخدم
+  // لسه بيكتب بيانات مقايسة (قطاع/زجاج/لون/إكسسوارات اختيارية). لازم نحافظ على اختياره
+  // بدل ما نصفّر كل حاجة من غير ما يحس، وإلا هيروح يدوس "احسب" على بيانات اتصفرت لوحدها.
+  const prevSec = secSelect.value, prevGlass = glassSelect.value, prevColor = colorSelect.value;
   const snap = getSnapshot();
   secSelect.innerHTML = "";
   glassSelect.innerHTML = "";
@@ -1006,6 +1025,7 @@ function fillDropdowns() {
     o.value = name; o.textContent = name;
     secSelect.appendChild(o);
   });
+  if (prevSec && Array.from(secSelect.options).some(o => o.value === prevSec)) secSelect.value = prevSec;
   (snap.glass_types || []).forEach(g => {
     const o = document.createElement("option");
     o.value = g.name; o.textContent = g.name + " (" + g.price + " ج/م²)";
@@ -1015,6 +1035,7 @@ function fillDropdowns() {
   const noGlassOpt = document.createElement("option");
   noGlassOpt.value = NO_GLASS; noGlassOpt.textContent = NO_GLASS;
   glassSelect.appendChild(noGlassOpt);
+  if (prevGlass && Array.from(glassSelect.options).some(o => o.value === prevGlass)) glassSelect.value = prevGlass;
   if (itemKindSelect.value === "باب") glassSelect.value = NO_GLASS;
   colorSelect.innerHTML = "";
   const noColorOpt = document.createElement("option");
@@ -1025,6 +1046,7 @@ function fillDropdowns() {
     o.value = c.name; o.textContent = c.name + " (" + c.price_kg + " ج/كجم)";
     colorSelect.appendChild(o);
   });
+  if (prevColor && Array.from(colorSelect.options).some(o => o.value === prevColor)) colorSelect.value = prevColor;
   fillOriginModeSelect(snap);
   applyOriginMode();
   buildOptionalAccBox();
@@ -1459,6 +1481,14 @@ function renderAccBulkList() {
 }
 document.getElementById("accBulkSearch").addEventListener("keyup", renderAccBulkList);
 
+// صندوق "تحديث أسعار الإكسسورات" في تبويب الإدارة: مقفول بالأول عشان ميطولش الصفحة، وبالدوس عليه يتفتح/يتقفل
+document.getElementById("accBulkHeader").addEventListener("click", () => {
+  const body = document.getElementById("accBulkBody");
+  const arrow = document.getElementById("accBulkArrow");
+  const nowOpen = body.classList.toggle("hidden") === false;
+  arrow.textContent = nowOpen ? "▲ قفل" : "▼ فتح";
+});
+
 function accBulkGroupByKey(key) {
   return accBulkGroups.find(g => g.key === key);
 }
@@ -1764,6 +1794,13 @@ document.getElementById("calcBtn").addEventListener("click", () => {
     resultBody.innerHTML = html;
     const totalForQty = d.sellingPrice * qty;
     resultTotal.textContent = "السعر التقديري: " + fmtMoney(totalForQty) + " جنيه" + (qty > 1 ? " (لـ " + qty + ")" : "");
+    // سطر الملخص اللي ظاهر دايمًا سواء الصندوق مقفول أو مفتوح: الوزن (أو الطول لو متر) الإجمالي + السعر
+    const weightTxt = d.pricingMode === "meter"
+      ? "إجمالي الطول: " + fmt(d.totalM * qty) + " م"
+      : "إجمالي الوزن: " + fmt((d.accWeightKg > 0 ? d.totalWeightWithAcc : d.totalKg) * qty) + " كجم";
+    document.getElementById("resultSummaryText").textContent = weightTxt + " — " + fmtMoney(totalForQty) + " ج";
+    resultBody.classList.remove("open"); resultBody.classList.add("hidden");
+    document.getElementById("resultSummaryArrow").textContent = "▼ كل التفاصيل";
     resultCard.classList.remove("hidden");
     resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, colorName: colorName === NO_COLOR ? "" : colorName, itemKind, price: totalForQty, unitPrice: d.sellingPrice,
       pricingMode: d.pricingMode, totalKg: d.totalKg, totalM: d.totalM, accWeightKg: d.accWeightKg, totalWeightWithAcc: d.totalWeightWithAcc,
@@ -1772,8 +1809,19 @@ document.getElementById("calcBtn").addEventListener("click", () => {
   } catch (e) {
     resultBody.innerHTML = '<div class="err">' + e.message + '</div>';
     resultTotal.textContent = "";
+    document.getElementById("resultSummaryText").textContent = "";
+    resultBody.classList.add("open"); resultBody.classList.remove("hidden");
     resultCard.classList.remove("hidden");
   }
+});
+
+// صندوق التقدير: مقفول بيعرض الوزن والسعر بس، وبالدوس عليه يتفتح ويقفل علشان يعرض كل التفاصيل
+document.getElementById("resultSummaryBox").addEventListener("click", () => {
+  const resultBody = document.getElementById("resultBody");
+  const arrow = document.getElementById("resultSummaryArrow");
+  const nowOpen = resultBody.classList.toggle("open");
+  resultBody.classList.toggle("hidden", !nowOpen);
+  arrow.textContent = nowOpen ? "▲ قفل التفاصيل" : "▼ كل التفاصيل";
 });
 
 // ---------------------------------------------------------------

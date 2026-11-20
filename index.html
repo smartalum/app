@@ -855,12 +855,14 @@ function fmt(n) {
   return (Math.round(n * 100) / 100).toLocaleString("ar-EG");
 }
 
-// للمبالغ (جنيه) بس: بنطلعها رقم صحيح من غير قروش، ومقرّبة لأعلى دايمًا (14555.49 → 14556)
+// للمبالغ (جنيه): بنعرضها بالقيمة المضبوطة بالقروش من غير أي تقريب لأعلى - علشان الفواتير والضرايب
 function fmtMoney(n) {
   if (n === null || n === undefined || isNaN(n)) return "-";
-  const cents = Math.round(n * 100) / 100;   // نمسح أي فروق تقريب عشرية صغيرة الأول
-  const whole = Math.ceil(cents - 1e-9) || 0;   // || 0 بيشيل أي -0 ناتجة عن قيم صفرية/سالبة صغيرة جدًا
-  return whole.toLocaleString("ar-EG");
+  const cents = Math.round(n * 100) / 100;   // نمسح أي فروق تقريب عشرية صغيرة جدًا بس
+  const fixed = (cents === 0 ? 0 : cents).toFixed(2);   // توحيد -0 لـ 0
+  const parts = fixed.split(".");
+  const withThousands = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return withThousands + "." + parts[1];
 }
 
 function isConnected() { return !!getSheetUrl(); }

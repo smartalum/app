@@ -726,11 +726,16 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
     if (totalKg <= 0) throw new Error("القطاع ده مفيهوش أوزان متر مسجلة في آخر مزامنة، مش هينفع يتحسب أوفلاين. زامن البيانات تاني وانت متصل.");
   }
   // بنود وزن إضافية (قطاعات معقدة فيها أجزاء زيادة عن الحلق/الضلفة العادية - زي ضلفة جوه ضلفة، جزء ثابت، عارضة فاصلة...)
+  // كل بند وزنه بيتضاف على وزن القطاع الكلي وبيتسعّر بسعر الكيلو العادي زي باقي القطاع بالظبط (نفس البرنامج بالظبط)
+  const extraItemsRows = [];
   if (sec.weight_items && sec.weight_items.length) {
     const wiCtx = {W, H, SW, SH, FW, FH, DW, DH, GW, GH, GA: glassArea, NS: numPanes, KL, KN: knN};
     for (const wi of sec.weight_items) {
       try {
-        totalKg += calcQty(wi, wiCtx) * toF(wi.kg_m);
+        const wiQty = calcQty(wi, wiCtx);
+        const wiRate = toF(wi.kg_m);
+        totalKg += wiQty * wiRate;
+        extraItemsRows.push({name: wi.name, unit: wi.unit || "متر", qty: wiQty, rate: wiRate, total: wiQty * wiRate, kind: "weight"});
       } catch (e) { /* تجاهل بند فيه معادلة غلط عشان ميوقفش باقي الحساب */ }
     }
   }
@@ -749,7 +754,9 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
             const cp = toF(mi.color_prices[colorName]);
             if (cp > 0) miPrice = cp;
           }
-          aluCost += calcQty(mi, miCtx) * miPrice;
+          const miQty = calcQty(mi, miCtx);
+          aluCost += miQty * miPrice;
+          extraItemsRows.push({name: mi.name, unit: mi.unit || "متر", qty: miQty, rate: miPrice, total: miQty * miPrice, kind: "meter"});
         } catch (e) { /* تجاهل بند فيه معادلة غلط عشان ميوقفش باقي الحساب */ }
       }
     }
@@ -763,13 +770,19 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
 
   const ctx = {W, H, SW, SH, FW, FH, DW, DH, GW, GH, GA: glassArea, NS: numPanes, KL, KN: knN};
   let totalAcc = 0;
+  let accWeightKg = 0;
   const accRows = [];
   for (const item of effectiveAccessoryRows(sec, accOriginChoice, optionalSelected)) {
     const qty = calcQty(item, ctx);
     const price = toF(item.price);
     const total = qty * price;
     totalAcc += total;
-    accRows.push({name: item.name, qty, price, total, origin: item.origin || ""});
+    accRows.push({name: item.name, qty, price, total, origin: item.origin || "", unit: item.unit || ""});
+    // أعواد الإكسسوارات المحسوبة بالكجم (زي عود برور أو السلك وغيره): وزنها بيتضاف لإجمالي الوزن المعروض بس
+    // (مش بيأثر على سعر الألومنيوم، لأن السعر متسجل في بند الإكسسوار نفسه - نفس البرنامج بالظبط)
+    if (pricing.mode !== "meter" && item.unit === "كجم") {
+      accWeightKg += qty;
+    }
   }
   const glassWastePct = Math.max(toF(sec.glass_waste_pct), 0);
   const po = opts || {};
@@ -794,8 +807,10 @@ function computeEstimate(sec, W, H, glassPrice, priceKg, profitPct, opts, accOri
     ? totalCost * (1 + profitPct / 100) + laborCost + overheadCost
     : (totalCost + laborCost + overheadCost) * (1 + profitPct / 100);
   const totalM = frM + saM + dvM + knM;
+  const totalWeightWithAcc = totalKg + accWeightKg;
   return {SW, SH, FW, FH, DW, DH, GW, GH, hasMesh, meshW, meshH, numPanes, frameCount, totalKg, totalM,
           aluCost, aluBase, wastePct, wasteAmt, glassArea, glassBaseCost, glassWastePct, glassWasteAmt, glassCost, accRows, totalAcc,
+          accWeightKg, totalWeightWithAcc, extraItemsRows,
           totalCost, sellingPrice, pricingMode: pricing.mode, dwN, dhN, knN, KL};
 }
 
@@ -1724,19 +1739,35 @@ document.getElementById("calcBtn").addEventListener("click", () => {
       html += '<div class="result-line"><span>الزجاج</span><b>بدون زجاج</b></div>';
     }
     html += '<div class="result-line"><span>عدد الضلف</span><b>' + d.numPanes + '</b></div>';
+    // بنود إضافية (وزن أو متر) خاصة بالقطاع ده - زي البرنامج بالظبط، كل بند بسطر لوحده
+    (d.extraItemsRows || []).forEach(er => {
+      const erLabel = er.kind === "weight" ? (er.name + " (بند وزن إضافي - " + fmt(er.rate) + " كجم/" + er.unit + ")") : (er.name + " (بند متر إضافي)");
+      const erQtyTxt = er.unit === "متر" ? (fmt(er.qty) + " م") : (fmt(er.qty) + " " + er.unit);
+      html += '<div class="result-line"><span>' + erLabel + '</span><b>' + erQtyTxt + (er.kind === "meter" ? " = " + fmtMoney(er.total) + " ج" : "") + '</b></div>';
+    });
     if (d.pricingMode === "meter") {
       html += '<div class="result-line"><span>طول الألومنيوم للوحدة الواحدة</span><b>' + fmt(d.totalM) + ' م</b></div>';
       html += '<div class="result-line"><span>إجمالي الطول (× ' + qty + ')</span><b>' + fmt(d.totalM * qty) + ' م</b></div>';
     } else {
       html += '<div class="result-line"><span>وزن الألومنيوم للوحدة الواحدة</span><b>' + fmt(d.totalKg) + ' كجم</b></div>';
-      html += '<div class="result-line"><span>إجمالي الوزن (× ' + qty + ')</span><b>' + fmt(d.totalKg * qty) + ' كجم</b></div>';
+      if (d.accWeightKg > 0) {
+        // إكسسوارات متسعّرة بالكيلو (زي السلك) - وزنها بيتضاف لإجمالي الوزن المعروض بس، مش بيأثر على السعر
+        (d.accRows || []).filter(r => r.unit === "كجم").forEach(r => {
+          html += '<div class="result-line"><span>' + r.name + ' (إكسسوار بالوزن)</span><b>' + fmt(r.qty) + ' كجم</b></div>';
+        });
+        html += '<div class="result-line"><span>إجمالي الوزن (شامل أعواد الإكسسوارات) للوحدة الواحدة</span><b>' + fmt(d.totalWeightWithAcc) + ' كجم</b></div>';
+        html += '<div class="result-line"><span>إجمالي الوزن (× ' + qty + ')</span><b>' + fmt(d.totalWeightWithAcc * qty) + ' كجم</b></div>';
+      } else {
+        html += '<div class="result-line"><span>إجمالي الوزن (× ' + qty + ')</span><b>' + fmt(d.totalKg * qty) + ' كجم</b></div>';
+      }
     }
     resultBody.innerHTML = html;
     const totalForQty = d.sellingPrice * qty;
     resultTotal.textContent = "السعر التقديري: " + fmtMoney(totalForQty) + " جنيه" + (qty > 1 ? " (لـ " + qty + ")" : "");
     resultCard.classList.remove("hidden");
     resultCard.dataset.calc = JSON.stringify({secName, W, H, qty, glassName, colorName: colorName === NO_COLOR ? "" : colorName, itemKind, price: totalForQty, unitPrice: d.sellingPrice,
-      pricingMode: d.pricingMode, totalKg: d.totalKg, totalM: d.totalM, accOrigins: Object.assign({}, accOriginChoice), optionalAccessories: optionalAccChosen});
+      pricingMode: d.pricingMode, totalKg: d.totalKg, totalM: d.totalM, accWeightKg: d.accWeightKg, totalWeightWithAcc: d.totalWeightWithAcc,
+      extraItemsRows: d.extraItemsRows || [], accOrigins: Object.assign({}, accOriginChoice), optionalAccessories: optionalAccChosen});
     resultCard.scrollIntoView({behavior: "smooth"});
   } catch (e) {
     resultBody.innerHTML = '<div class="err">' + e.message + '</div>';
@@ -1777,8 +1808,9 @@ function renderCurrentItems() {
   list.innerHTML = items.map(it => {
     total += toF(it.price);
     const isMeter = it.pricingMode === "meter";
-    if (isMeter) totalM += toF(it.totalM) * toF(it.qty); else totalKg += toF(it.totalKg) * toF(it.qty);
-    const wline = isMeter ? (fmt(toF(it.totalM) * toF(it.qty)) + " م") : (fmt(toF(it.totalKg) * toF(it.qty)) + " كجم");
+    const unitWeight = toF(it.totalWeightWithAcc) > 0 ? toF(it.totalWeightWithAcc) : toF(it.totalKg);
+    if (isMeter) totalM += toF(it.totalM) * toF(it.qty); else totalKg += unitWeight * toF(it.qty);
+    const wline = isMeter ? (fmt(toF(it.totalM) * toF(it.qty)) + " م") : (fmt(unitWeight * toF(it.qty)) + " كجم");
     return `
     <div class="pending-item">
       <div class="top">
@@ -1786,7 +1818,8 @@ function renderCurrentItems() {
         <span class="price">${fmtMoney(it.price)} ج</span>
       </div>
       <div class="muted">${fmt(it.W)} × ${fmt(it.H)} سم - عدد ${it.qty} - ${it.glassName}${it.colorName ? " - لون: " + it.colorName : ""}${(it.optionalAccessories && it.optionalAccessories.length) ? " - " + it.optionalAccessories.join("، ") : ""}</div>
-      <div class="muted">${isMeter ? "طول الألومنيوم" : "وزن الألومنيوم"}: ${wline}</div>
+      ${(it.extraItemsRows && it.extraItemsRows.length) ? `<div class="muted">بنود إضافية: ${it.extraItemsRows.map(er => er.name).join("، ")}</div>` : ""}
+      <div class="muted">${isMeter ? "طول الألومنيوم" : "وزن الألومنيوم" + (toF(it.accWeightKg) > 0 ? " (شامل أعواد الإكسسوارات)" : "")}: ${wline}</div>
       <button class="btn-sm btn-red" style="float:left" onclick="deleteCurrentItem(${it.rowId})">حذف</button>
     </div>
   `;

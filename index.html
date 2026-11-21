@@ -577,7 +577,9 @@ async function setupPushNotifications() {
     if (!token) return;
     if (localStorage.getItem(LS_FCM_TOKEN_SENT) === token) return; // اتبعت قبل كدة، مفيش داعي نكرر
     const label = (getAuthRole() === "admin" ? "الأدمن" : getAuthName()) || "موبايل";
-    const resp = await sheetDirectRequest("register_fcm_token", "POST", { token, label });
+    // ملحوظة: بنسميها fcm_token مش token، عشان الاسم "token" محجوز لتوكن الدخول للشيت نفسه
+    // (sheetDirectRequest بيحط التوكن ده أوتوماتيك في كل طلب)، ولو استخدمنا نفس الاسم هيحصل تضارب.
+    const resp = await sheetDirectRequest("register_fcm_token", "POST", { fcm_token: token, label });
     if (resp && resp.ok) {
       try { localStorage.setItem(LS_FCM_TOKEN_SENT, token); } catch (e) {}
     }

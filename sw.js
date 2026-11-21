@@ -28,3 +28,28 @@ self.addEventListener("fetch", (e) => {
       .catch(() => caches.match(e.request))
   );
 });
+
+// ---------------------------------------------------------------
+// إشعارات بوش حقيقية (تظهر حتى لو التطبيق مقفول) - نفس الـ Service Worker ده شغال لكل الورش،
+// فمش محتاج أي إعداد خاص بورشة معينة هنا؛ الإشعار بييجي بالـ Push API العادية من FCM
+// ---------------------------------------------------------------
+self.addEventListener("push", (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
+  const n = data.notification || data || {};
+  const title = n.title || "تنبيه من الورشة";
+  const body = n.body || "";
+  event.waitUntil(
+    self.registration.showNotification(title, { body })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+      for (const c of list) { if ("focus" in c) return c.focus(); }
+      if (clients.openWindow) return clients.openWindow("./");
+    })
+  );
+});

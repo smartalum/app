@@ -48,6 +48,12 @@
   #resultBody.open { display: block; }
   .collapsible-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
   .collapsible-header span { font-size: 12px; color: #2563eb; white-space: nowrap; margin-right: 8px; }
+  .login-overlay { position: fixed; inset: 0; background: #f3f4f6; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .login-overlay.hidden { display: none; }
+  .login-box { background: white; border-radius: 14px; padding: 24px 20px; width: 100%; max-width: 340px; box-shadow: 0 4px 18px rgba(0,0,0,.12); text-align: center; }
+  .login-box h2 { margin: 0 0 4px; }
+  .login-box input { width: 100%; margin: 14px 0 10px; padding: 10px; font-size: 16px; border: 1px solid #d1d5db; border-radius: 8px; text-align: center; }
+  #authStatusCard { display: flex; justify-content: space-between; align-items: center; }
   .total-box { background: #eef2ff; border-radius: 8px; padding: 10px; margin-top: 8px; text-align: center; font-size: 19px; font-weight: bold; color: #1e3a8a; }
   .pending-item { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
   .pending-item .top { display: flex; justify-content: space-between; align-items: center; }
@@ -216,6 +222,22 @@
 
   <!-- الشاشة الرئيسية -->
   <div id="mainScreen">
+
+    <div id="loginOverlay" class="login-overlay">
+      <div class="login-box">
+        <h2>🔒 الدخول</h2>
+        <p class="muted">اكتب باسوردك (باسورد الأدمن أو باسورد الموظف) عشان تدخل التطبيق</p>
+        <input id="loginPasswordInput" type="password" placeholder="الباسورد" autocomplete="off">
+        <button class="btn-main" id="loginSubmitBtn" style="width:100%;">دخول</button>
+        <p class="err hidden" id="loginError" style="margin-top:10px;"></p>
+        <p class="muted" id="loginNoAuthMsg" style="display:none; margin-top:10px;">لسه محتاج أول مزامنة من برنامج الكمبيوتر الأول عشان تقدر تدخل (اتأكد إن فيه اتصال بالورشة ومزامنة حصلت مرة على الأقل).</p>
+      </div>
+    </div>
+
+    <div class="card" id="authStatusCard" style="display:none;">
+      <span class="muted" id="authStatusText"></span>
+      <button class="btn-sm btn-gray" id="logoutBtn">🔒 خروج</button>
+    </div>
 
     <div class="card">
       <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -541,6 +563,135 @@ function getCurrentItems() { try { return JSON.parse(localStorage.getItem(LS_CUR
 function setCurrentItems(items) { try { localStorage.setItem(LS_CURRENT, JSON.stringify(items)); } catch (e) {} }
 function getAdminQueue() { try { return JSON.parse(localStorage.getItem(LS_ADMIN_QUEUE) || "[]"); } catch (e) { return []; } }
 function setAdminQueue(q) { try { localStorage.setItem(LS_ADMIN_QUEUE, JSON.stringify(q)); } catch (e) {} }
+
+// ---------------------------------------------------------------
+// باسورد الدخول للتطبيق: زي نظام الكمبيوتر بالظبط (أدمن = صلاحية كاملة، موظف = اسم وباسورد خاص بيه
+// وصلاحية محددة من الكمبيوتر). الباسورد نفسه ميتخزنش هنا، بنتحقق منه بـ PBKDF2 (نفس خوارزمية الكمبيوتر)
+// وقت الدخول بس، وبعدين بنفتكر النتيجة (مين دخل وصلاحيته) لحد ما يعمل خروج.
+// ---------------------------------------------------------------
+const LS_AUTH_ROLE = "sac_auth_role", LS_AUTH_NAME = "sac_auth_name", LS_AUTH_PERM = "sac_auth_perm";
+function getAuthRole() { return localStorage.getItem(LS_AUTH_ROLE) || ""; }
+function getAuthName() { return localStorage.getItem(LS_AUTH_NAME) || ""; }
+function getAuthPerm() { return localStorage.getItem(LS_AUTH_PERM) || ""; }
+function setAuth(role, name, perm) {
+  try {
+    localStorage.setItem(LS_AUTH_ROLE, role || "");
+    localStorage.setItem(LS_AUTH_NAME, name || "");
+    localStorage.setItem(LS_AUTH_PERM, perm || "");
+  } catch (e) {}
+}
+function clearAuth() {
+  localStorage.removeItem(LS_AUTH_ROLE);
+  localStorage.removeItem(LS_AUTH_NAME);
+  localStorage.removeItem(LS_AUTH_PERM);
+}
+
+function hexToBytes(hex) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+  return out;
+}
+
+async function pbkdf2Hex(password, saltHex, iterations) {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    {name: "PBKDF2", salt: hexToBytes(saltHex), iterations: iterations, hash: "SHA-256"}, keyMaterial, 256);
+  return Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// بيدوّر على الباسورد المكتوب في باسورد الأدمن، وبعدين كل موظف، بالظبط زي identify_login() في الكمبيوتر
+async function tryLogin(password) {
+  const snap = getSnapshot();
+  const auth = snap && snap.auth;
+  const hasAdmin = auth && auth.admin && auth.admin.salt && auth.admin.hash;
+  const hasEmps = auth && Array.isArray(auth.employees) && auth.employees.length > 0;
+  if (!auth || (!hasAdmin && !hasEmps)) return {ok: false, noAuth: true};
+  const iterations = auth.iterations || 200000;
+  if (hasAdmin) {
+    const h = await pbkdf2Hex(password, auth.admin.salt, iterations);
+    if (h === auth.admin.hash) return {ok: true, role: "admin", name: "الأدمن", perm: ""};
+  }
+  for (const emp of (auth.employees || [])) {
+    if (!emp.salt || !emp.hash) continue;
+    const h = await pbkdf2Hex(password, emp.salt, iterations);
+    if (h === emp.hash) return {ok: true, role: "employee", name: emp.name || "موظف", perm: emp.perm || "estimate_only"};
+  }
+  return {ok: false};
+}
+
+// عناصر تبويب الإدارة اللي بتعمل تعديل فعلي - بتتقفل (disabled) للموظف اللي صلاحيته "عرض بس"
+const ADMIN_EDIT_CONTROL_IDS = [
+  "adminPriceKg", "adminProfitPct", "adminGlassPrice", "adminColorPrice", "adminSavePricesBtn",
+  "adminMeterFrame", "adminMeterSash", "adminMeterDiv", "adminMeterKnife", "adminSaveMeterBtn",
+  "adminStockQty", "adminStockReason", "adminStockInBtn", "adminStockOutBtn",
+  "adminExpenseAmount", "adminExpenseNote", "adminAddExpenseBtn",
+  "accBulkFixedPrice", "accBulkPct", "accBulkApplyFixedBtn", "accBulkApplyPctBtn",
+  "accBulkSelectAllBtn", "accBulkClearAllBtn"
+];
+
+function setAdminEditDisabled(disabled) {
+  ADMIN_EDIT_CONTROL_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = disabled;
+  });
+}
+
+// بيحدد شكل التطبيق حسب مين داخل: الأدمن (كل حاجة متاحة)، موظف "كل التبويبات" (عرض بس، من غير تعديل)،
+// أو موظف "مقايسة بس" (تبويبي المتابعة والإدارة مختفيين خالص)
+function applyAuthGate() {
+  const role = getAuthRole();
+  if (!role) {
+    loginOverlay.classList.remove("hidden");
+    document.getElementById("authStatusCard").style.display = "none";
+    return;
+  }
+  loginOverlay.classList.add("hidden");
+  const perm = getAuthPerm();
+  const name = getAuthName();
+  const statusCard = document.getElementById("authStatusCard");
+  statusCard.style.display = "flex";
+  document.getElementById("authStatusText").textContent = role === "admin" ? "داخل كـ: الأدمن" : ("داخل كـ: " + name + " (موظف)");
+  if (role === "admin") {
+    tabTrackBtn.style.display = "";
+    tabAdminBtn.style.display = "";
+    setAdminEditDisabled(false);
+  } else if (perm === "view_all") {
+    tabTrackBtn.style.display = "";
+    tabAdminBtn.style.display = "";
+    setAdminEditDisabled(true);
+  } else {
+    tabTrackBtn.style.display = "none";
+    tabAdminBtn.style.display = "none";
+    setAdminEditDisabled(true);
+    showTab("quote");
+  }
+}
+
+async function doLoginAttempt() {
+  const input = document.getElementById("loginPasswordInput");
+  const pw = input.value;
+  const errEl = document.getElementById("loginError");
+  const noAuthEl = document.getElementById("loginNoAuthMsg");
+  errEl.classList.add("hidden");
+  noAuthEl.style.display = "none";
+  if (!pw) return;
+  const btn = document.getElementById("loginSubmitBtn");
+  btn.disabled = true; const oldTxt = btn.textContent; btn.textContent = "...";
+  let res;
+  try { res = await tryLogin(pw); } catch (e) { res = {ok: false}; }
+  btn.disabled = false; btn.textContent = oldTxt;
+  if (res.ok) {
+    setAuth(res.role, res.name, res.perm);
+    input.value = "";
+    applyAuthGate();
+  } else if (res.noAuth) {
+    noAuthEl.style.display = "block";
+  } else {
+    errEl.textContent = "الباسورد غلط. حاول تاني.";
+    errEl.classList.remove("hidden");
+  }
+}
 
 // بنكلم الشيت على طول دايمًا - مفيش كمبيوتر/شبكة محلية في الموضوع خالص.
 // بنبعت POST بـ text/plain مش application/json عشان نتجنب مشكلة CORS preflight مع جوجل سكريبت.
@@ -870,6 +1021,7 @@ function isConnected() { return !!getSheetUrl(); }
 function showScreen() {
   connectScreen.style.display = isConnected() ? "none" : "block";
   mainScreen.style.display = isConnected() ? "block" : "none";
+  if (isConnected() && typeof applyAuthGate === "function") applyAuthGate();
 }
 
 function saveConnection(url, token, workshopName) {
@@ -1056,6 +1208,7 @@ function fillDropdowns() {
   fillAdminDropdowns(snap);
   checkStockAlerts(snap);
   renderAccBulkList();
+  if (typeof applyAuthGate === "function") applyAuthGate();
 }
 
 // ---------------------------------------------------------------
@@ -1970,6 +2123,17 @@ function showTab(which) {
 tabQuoteBtn.addEventListener("click", () => showTab("quote"));
 tabTrackBtn.addEventListener("click", () => showTab("track"));
 tabAdminBtn.addEventListener("click", () => showTab("admin"));
+
+const loginOverlay = document.getElementById("loginOverlay");
+document.getElementById("loginSubmitBtn").addEventListener("click", doLoginAttempt);
+document.getElementById("loginPasswordInput").addEventListener("keydown", (e) => { if (e.key === "Enter") doLoginAttempt(); });
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  if (!confirm("متأكد عايز تعمل خروج؟")) return;
+  clearAuth();
+  applyAuthGate();
+});
+applyAuthGate();
+
 document.getElementById("refreshTrackBtn").addEventListener("click", () => loadOverview());
 document.getElementById("actRangeSelect").addEventListener("change", () => loadOverview());
 document.getElementById("actTypeSelect").addEventListener("change", () => renderActivity(lastActivityRows));

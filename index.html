@@ -545,7 +545,52 @@
 </div>
 
 <script src="jsqr.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging-compat.js"></script>
 <script>
+// ---------------------------------------------------------------
+// تنبيهات الموبايل (Push Notifications عن طريق Firebase): بيانات المشروع دي عمومية وآمنة تتحط في كود
+// الصفحة (مش سر زي مفتاح السيرفر)، بتشتغل بس مع دعم المتصفح للتنبيهات (مش كل الموبايلات بتدعمها، زي آيفون
+// لازم يبقى التطبيق مضاف للشاشة الرئيسية الأول).
+// ---------------------------------------------------------------
+const FCM_CONFIG = {
+  apiKey: "AIzaSyCsey8hOWQbjnA7O5MfzaafPInPqyOx03U",
+  authDomain: "workshop-d3bac.firebaseapp.com",
+  projectId: "workshop-d3bac",
+  storageBucket: "workshop-d3bac.firebasestorage.app",
+  messagingSenderId: "347685802024",
+  appId: "1:347685802024:web:8d09f64815000bfb65e51d"
+};
+const FCM_VAPID_KEY = "BKIEtjRStKik6jiDCjiaytxPsnx1n6kpww33yJNdAooK_Vzqs5YhThkmD8wDfFdoERCf7jMpiYqiP8ObDqps07k";
+const LS_FCM_TOKEN_SENT = "sac_fcm_token_sent";
+
+async function setupPushNotifications() {
+  try {
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || typeof firebase === "undefined") return;
+    if (Notification.permission === "denied") return;
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") return;
+    if (!firebase.apps || !firebase.apps.length) firebase.initializeApp(FCM_CONFIG);
+    const reg = await navigator.serviceWorker.ready;
+    const messaging = firebase.messaging();
+    const token = await messaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) return;
+    if (localStorage.getItem(LS_FCM_TOKEN_SENT) === token) return; // اتبعت قبل كدة، مفيش داعي نكرر
+    const label = (getAuthRole() === "admin" ? "الأدمن" : getAuthName()) || "موبايل";
+    const resp = await sheetDirectRequest("register_fcm_token", "POST", { token, label });
+    if (resp && resp.ok) {
+      try { localStorage.setItem(LS_FCM_TOKEN_SENT, token); } catch (e) {}
+    }
+    messaging.onMessage((payload) => {
+      // التطبيق مفتوح قدام المستخدم فعلاً وقت التنبيه - نوريه إشعار نظام عادي برضو
+      const n = (payload && payload.notification) || {};
+      try { new Notification(n.title || "تنبيه", { body: n.body || "" }); } catch (e) {}
+    });
+  } catch (e) {
+    // أي خطأ هنا (المتصفح مش داعم، الإذن اتمنع، إلخ) ميوقفش باقي التطبيق
+  }
+}
+
 // ---------------------------------------------------------------
 // تخزين محلي: رابط وتوكن الشيت (بديل الاتصال بالكمبيوتر تمامًا)، آخر بيانات مزامنة، وقائمة الانتظار
 // ---------------------------------------------------------------
@@ -685,6 +730,7 @@ async function doLoginAttempt() {
     setAuth(res.role, res.name, res.perm);
     input.value = "";
     applyAuthGate();
+    setupPushNotifications();
   } else if (res.noAuth) {
     noAuthEl.style.display = "block";
   } else {
@@ -2274,6 +2320,7 @@ if (isConnected()) { doSync().then((ok) => { if (ok) { syncQueue(); syncAdminQue
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
+if (getAuthRole()) setupPushNotifications();
 </script>
 </body>
 </html>

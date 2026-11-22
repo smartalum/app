@@ -572,7 +572,6 @@ const FCM_CONFIG = {
   appId: "1:347685802024:web:8d09f64815000bfb65e51d"
 };
 const FCM_VAPID_KEY = "BKIEtjRStKik6jiDCjiaytxPsnx1n6kpww33yJNdAooK_Vzqs5YhThkmD8wDfFdoERCf7jMpiYqiP8ObDqps07k";
-const LS_FCM_TOKEN_SENT = "sac_fcm_token_sent";
 
 async function setupPushNotifications() {
   try {
@@ -585,14 +584,12 @@ async function setupPushNotifications() {
     const messaging = firebase.messaging();
     const token = await messaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
     if (!token) return;
-    if (localStorage.getItem(LS_FCM_TOKEN_SENT) === token) return; // اتبعت قبل كدة، مفيش داعي نكرر
+    // بنبعت التسجيل ده في كل مرة (مش بنتجنب التكرار بحفظ محلي) عشان ده آمن تمامًا - السيرفر بيحدّث
+    // نفس الصف لو التوكن موجود بالفعل مش بيكرره - وده بيحمينا لو حصل أي تغيير يدوي في الشيت.
     const label = (getAuthRole() === "admin" ? "الأدمن" : getAuthName()) || "موبايل";
     // ملحوظة: بنسميها fcm_token مش token، عشان الاسم "token" محجوز لتوكن الدخول للشيت نفسه
     // (sheetDirectRequest بيحط التوكن ده أوتوماتيك في كل طلب)، ولو استخدمنا نفس الاسم هيحصل تضارب.
     const resp = await sheetDirectRequest("register_fcm_token", "POST", { fcm_token: token, label });
-    if (resp && resp.ok) {
-      try { localStorage.setItem(LS_FCM_TOKEN_SENT, token); } catch (e) {}
-    }
     messaging.onMessage((payload) => {
       // التطبيق مفتوح قدام المستخدم فعلاً وقت التنبيه - نوريه إشعار نظام عادي برضو
       const n = (payload && payload.notification) || {};

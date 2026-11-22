@@ -16,6 +16,16 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script>
+// أداة تشخيص مؤقتة: لو فتحت الرابط وضايف ?debug=1 في الآخر، هيظهرلك زرار كونسول عايم على الشاشة
+// يوريك أي أخطاء بالظبط - من غير ما تحتاج كمبيوتر أو كابل خالص. تقدر تشيل السطر ده بعدين لما تخلص تشخيص.
+if (location.search.indexOf("debug=1") !== -1) {
+  var _s = document.createElement("script");
+  _s.src = "https://cdn.jsdelivr.net/npm/eruda@3.0.1/eruda.min.js";
+  _s.onload = function () { eruda.init(); };
+  document.head.appendChild(_s);
+}
+</script>
 <style>
   * { box-sizing: border-box; }
   body { font-family: Tahoma, Arial, sans-serif; direction: rtl; margin: 0; background: #f3f4f6; color: #111827; padding-bottom: 30px; }

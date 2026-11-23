@@ -439,7 +439,7 @@ if (location.search.indexOf("debug=1") !== -1) {
 
       <div class="card">
         <h2>💰 تعديل الأسعار</h2>
-        <label>سعر الكيلو (ألومنيوم/UPVC)</label>
+        <label>سعر الكيلو (الألومنيوم)</label>
         <input id="adminPriceKg" type="number" inputmode="decimal">
         <label>نسبة الربح (%)</label>
         <input id="adminProfitPct" type="number" inputmode="decimal">
@@ -479,8 +479,12 @@ if (location.search.indexOf("debug=1") !== -1) {
         <input id="adminMeterDiv" type="number" inputmode="decimal">
         <label>سعر متر السكينة</label>
         <input id="adminMeterKnife" type="number" inputmode="decimal">
+        <div id="adminMeterItemsBox" style="display:none;">
+          <label>البنود الإضافية بالمتر لهذا القطاع (السعر العادي لكل بند)</label>
+          <div id="adminMeterItemsList"></div>
+        </div>
         <button class="btn-main" id="adminSaveMeterBtn">💾 حفظ أسعار المتر</button>
-        <p class="muted">كل قطاع من دول ليه أسعار متر مستقلة بتاعته بس، منفصلة عن سعر الكيلو فوق.</p>
+        <p class="muted">كل قطاع من دول ليه أسعار متر مستقلة بتاعته بس، منفصلة عن سعر الكيلو فوق. البنود الإضافية بتتعدل بسعرها العادي بس من هنا (مش حسب اللون).</p>
       </div>
 
       <div class="card">
@@ -1532,6 +1536,32 @@ function fillAdminMeterPrices() {
     document.getElementById("adminMeterDiv").value = sec.div_price_m || "";
     document.getElementById("adminMeterKnife").value = sec.knife_price_m || "";
   }
+
+  // البنود الإضافية بالمتر لهذا القطاع (بتتعدل بسعرها العادي بس، مش لها نسخة لكل لون من الموبايل)
+  const itemsBox = document.getElementById("adminMeterItemsBox");
+  const itemsList = document.getElementById("adminMeterItemsList");
+  itemsList.innerHTML = "";
+  const items = (sec.meter_items || []);
+  if (items.length && !colorName) {
+    itemsBox.style.display = "block";
+    items.forEach(it => {
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex; align-items:center; gap:8px; margin:6px 0;";
+      const lbl = document.createElement("span");
+      lbl.style.cssText = "flex:1; text-align:right;";
+      lbl.textContent = it.name + (it.unit ? " (" + it.unit + ")" : "");
+      const inp = document.createElement("input");
+      inp.type = "number"; inp.inputMode = "decimal";
+      inp.style.cssText = "width:100px; margin:0;";
+      inp.value = (it.price || it.price === 0) ? it.price : "";
+      inp.dataset.order = it.order;
+      row.appendChild(inp);
+      row.appendChild(lbl);
+      itemsList.appendChild(row);
+    });
+  } else {
+    itemsBox.style.display = "none";
+  }
 }
 document.getElementById("adminMeterSecSelect").addEventListener("change", fillAdminMeterPrices);
 document.getElementById("adminMeterColorSelect").addEventListener("change", fillAdminMeterPrices);
@@ -1548,6 +1578,15 @@ document.getElementById("adminSaveMeterBtn").addEventListener("click", () => {
     knife_price_m: toF(document.getElementById("adminMeterKnife").value),
   };
   if (colorName) mu.color_name = colorName;
+  if (!colorName) {
+    const itemInputs = document.querySelectorAll("#adminMeterItemsList input[data-order]");
+    const iu = [];
+    itemInputs.forEach(inp => {
+      const v = inp.value.trim();
+      if (v !== "") iu.push({order: parseInt(inp.dataset.order, 10), price: toF(v)});
+    });
+    if (iu.length) mu.item_updates = iu;
+  }
   const action = {kind: "price_update", meter_price_updates: mu};
   const label = colorName ? "تعديل أسعار متر (" + secName + " - لون " + colorName + ")" : "تعديل أسعار متر (" + secName + ")";
   pushAdminAction(action, label);
